@@ -193,6 +193,22 @@ final class PSTKitTests: XCTestCase {
         XCTAssertEqual(decoded, subject)
     }
 
+    func testHTMLEntities() {
+        XCTAssertEqual(HTMLText.toPlain("<p>caf&eacute; &#233; &#xE9; &amp; &lt;b&gt; &bogus; &euro;</p>"),
+                       "café é é & <b> &bogus; €")
+    }
+
+    func testQuotedParam() {
+        XCTAssertEqual(EMLWriter.quotedParam("report \"final\".pdf"), "\"report \\\"final\\\".pdf\"")
+        XCTAssertFalse(EMLWriter.quotedParam("a\r\nX-Evil: 1.txt").contains("\n"))
+    }
+
+    func testRTFHugeAdvertisedSize() {
+        var bytes: [UInt8] = [0x20, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0x7F, 0x4C, 0x5A, 0x46, 0x75, 0, 0, 0, 0]
+        bytes += [UInt8](repeating: 0, count: 16)
+        XCTAssertNotNil(RTF.decompress(bytes))
+    }
+
     func testSafeName() {
         XCTAssertEqual(EMLWriter.safeName(".."), "__")
         XCTAssertEqual(EMLWriter.safeName("."), "_")

@@ -10,6 +10,7 @@ public enum RTF {
         let compSize = Int(input.u32(0))
         let rawSize = Int(input.u32(4))
         let magic = input.u32(8)
+        guard rawSize >= 0, compSize >= 0 else { return nil }
         if magic == 0x414C_454D { // "MELA": stored uncompressed
             return input.slice(16, rawSize)
         }
@@ -18,7 +19,8 @@ public enum RTF {
         for (i, b) in prebuf.enumerated() { dict[i] = b }
         var writePos = prebuf.count
         var out: [UInt8] = []
-        out.reserveCapacity(rawSize)
+        // LZFu expands at most ~8x; never trust the advertised size beyond that (or 64 MB).
+        out.reserveCapacity(Swift.max(0, Swift.min(rawSize, input.count * 8, 64 << 20)))
         var pos = 16
         let end = Swift.min(input.count, compSize + 4)
         outer: while pos < end {

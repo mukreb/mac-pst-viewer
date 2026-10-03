@@ -47,15 +47,18 @@ public enum EMLWriter {
                 out += "\r\n--\(boundaryMixed)\r\n"
                 if a.isEmbeddedMessage, let em = try? m.embeddedMessage(a) {
                     out += "Content-Type: message/rfc822\r\n"
-                    out += "Content-Disposition: attachment; filename=\"\(encodeWord(safeName(a.filename) + ".eml"))\"\r\n\r\n"
+                    out += "Content-Disposition: attachment; filename=\(quotedParam(safeName(a.filename) + ".eml"))\r\n\r\n"
                     out += String(decoding: eml(for: em), as: UTF8.self)
                 } else {
                     let data = (try? m.data(for: a)) ?? Data()
-                    let mime = a.mimeType.isEmpty ? "application/octet-stream" : a.mimeType
-                    out += "Content-Type: \(mime); name=\"\(encodeWord(a.filename))\"\r\n"
+                    let mimeTag = a.mimeType.components(separatedBy: .whitespacesAndNewlines).joined()
+                    let mime = mimeTag.contains("/") ? mimeTag : "application/octet-stream"
+                    out += "Content-Type: \(mime); name=\(quotedParam(a.filename))\r\n"
                     out += "Content-Transfer-Encoding: base64\r\n"
-                    if !a.contentID.isEmpty { out += "Content-ID: <\(a.contentID)>\r\n" }
-                    out += "Content-Disposition: \(a.contentID.isEmpty ? "attachment" : "inline"); filename=\"\(encodeWord(a.filename))\"\r\n\r\n"
+                    let cid = a.contentID.components(separatedBy: .whitespacesAndNewlines).joined()
+                        .trimmingCharacters(in: CharacterSet(charactersIn: "<>"))
+                    if !cid.isEmpty { out += "Content-ID: <\(cid)>\r\n" }
+                    out += "Content-Disposition: \(a.contentID.isEmpty ? "attachment" : "inline"); filename=\(quotedParam(a.filename))\r\n\r\n"
                     out += data.base64EncodedString(options: [.lineLength76Characters, .endLineWithCarriageReturn, .endLineWithLineFeed])
                     out += "\r\n"
                 }
@@ -124,6 +127,17 @@ public enum EMLWriter {
             displayName = encodeWord(cleanName)
         }
         return "\(displayName) <\(email)>"
+    }
+
+    /// A MIME parameter value as a quoted string (RFC 2045/2047), safe against quotes and line breaks.
+    static func quotedParam(_ value: String) -> String {
+        let flat = value.components(separatedBy: .newlines).joined(separator: " ")
+        if flat.unicodeScalars.allSatisfy({ $0.isASCII }) {
+            let escaped = flat.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+            return "\"\(escaped)\""
+        }
+        // Encoded words never contain quotes or backslashes.
+        return "\"\(encodeWord(flat).replacingOccurrences(of: "\r\n ", with: " "))\""
     }
 
     /// RFC 2047 encoded-word for non-ASCII header values.

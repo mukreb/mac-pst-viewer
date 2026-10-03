@@ -378,12 +378,18 @@ final class ViewerModel: ObservableObject {
         guard panel.runModal() == .OK, let dir = panel.url else { return }
         runExport(count: refs.count, text: "Berichten exporteren…") { progress in
             var used = Set<String>()
+            var failures: [String] = []
             for (i, ref) in refs.enumerated() {
-                guard let m = try? await self.message(ref) else { continue }
-                let url = Self.uniqueURL(in: dir, base: EMLWriter.safeName(m.subject), ext: "eml", used: &used)
-                try? EMLWriter.eml(for: m).write(to: url)
+                do {
+                    let m = try await self.message(ref)
+                    let url = Self.uniqueURL(in: dir, base: EMLWriter.safeName(m.subject), ext: "eml", used: &used)
+                    try EMLWriter.eml(for: m).write(to: url)
+                } catch {
+                    failures.append("bericht \(i + 1): \(error.localizedDescription)")
+                }
                 await progress(i + 1)
             }
+            return failures
         }
     }
 
@@ -394,14 +400,27 @@ final class ViewerModel: ObservableObject {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let file = s.file
         runExport(count: node.folder.contentCount, text: "\(node.name) exporteren naar mbox…") { progress in
-            FileManager.default.createFile(atPath: url.path, contents: nil)
-            guard let handle = try? FileHandle(forWritingTo: url) else { return }
-            defer { try? handle.close() }
-            let summaries = (try? file.messages(in: ref.nid)) ?? []
-            for (i, sum) in summaries.enumerated() {
-                if let m = try? file.message(nid: sum.nid) { handle.write(EMLWriter.mboxEntry(for: m)) }
-                await progress(i + 1)
+            var failures: [String] = []
+            do {
+                guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
+                    return ["Kan \(url.lastPathComponent) niet aanmaken."]
+                }
+                let handle = try FileHandle(forWritingTo: url)
+                defer { try? handle.close() }
+                let summaries = (try? file.messages(in: ref.nid)) ?? []
+                for (i, sum) in summaries.enumerated() {
+                    do {
+                        let m = try file.message(nid: sum.nid)
+                        try handle.write(contentsOf: EMLWriter.mboxEntry(for: m))
+                    } catch {
+                        failures.append("\(sum.subject.isEmpty ? "(geen onderwerp)" : sum.subject): \(error.localizedDescription)")
+                    }
+                    await progress(i + 1)
+                }
+            } catch {
+                failures.append(error.localizedDescription)
             }
+            return failures
         }
     }
 
@@ -418,14 +437,23 @@ final class ViewerModel: ObservableObject {
         let total = recursive ? node.folder.totalCount : node.folder.contentCount
         runExport(count: total, text: "\(node.name) exporteren…") { progress in
             var done = 0
+            var failures: [String] = []
             func export(_ f: Folder, into dir: URL) async {
                 let target = dir.appendingPathComponent(EMLWriter.safeName(f.name.isEmpty ? "map" : f.name), isDirectory: true)
-                try? FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+                do {
+                    try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+                } catch {
+                    failures.append("map \(f.name): \(error.localizedDescription)")
+                    return
+                }
                 var used = Set<String>()
                 for sum in (try? file.messages(in: f.nid)) ?? [] {
-                    if let m = try? file.message(nid: sum.nid) {
+                    do {
+                        let m = try file.message(nid: sum.nid)
                         let url = Self.uniqueURL(in: target, base: EMLWriter.safeName(m.subject), ext: "eml", used: &used)
-                        try? EMLWriter.eml(for: m).write(to: url)
+                        try EMLWriter.eml(for: m).write(to: url)
+                    } catch {
+                        failures.append("\(f.name) / \(sum.subject.isEmpty ? "(geen onderwerp)" : sum.subject): \(error.localizedDescription)")
                     }
                     done += 1
                     await progress(done)
@@ -435,18 +463,28 @@ final class ViewerModel: ObservableObject {
                 }
             }
             await export(node.folder, into: base)
+            return failures
         }
     }
 
     @Published var exportProgress: (done: Int, total: Int, text: String)?
 
-    private func runExport(count: Int, text: String, _ work: @escaping (@escaping (Int) async -> Void) async -> Void) {
+    /// Runs an export in the background; `work` returns descriptions of items that failed.
+    private func runExport(count: Int, text: String, _ work: @escaping (@escaping (Int) async -> Void) async -> [String]) {
         exportProgress = (0, max(count, 1), text)
         Task.detached(priority: .userInitiated) {
-            await work { n in
+            let failures = await work { n in
                 await MainActor.run { self.exportProgress = (n, max(count, 1), text) }
             }
-            await MainActor.run { self.exportProgress = nil }
+            await MainActor.run {
+                self.exportProgress = nil
+                if !failures.isEmpty {
+                    var msg = "\(failures.count) item(s) konden niet worden geëxporteerd:\n\n"
+                    msg += failures.prefix(15).map { "• " + $0 }.joined(separator: "\n")
+                    if failures.count > 15 { msg += "\n… en nog \(failures.count - 15)" }
+                    self.errorMessage = msg
+                }
+            }
         }
     }
 
