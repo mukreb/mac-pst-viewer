@@ -57,6 +57,8 @@ Open **PST Viewer → Settings…** (⌘,) for:
 - **Appearance**: System default, Light or Dark, and whether HTML messages get dark colours in dark mode.
 - **Show system folders**, **load remote images** and the **default character set** for old ANSI messages.
 
+<img src="docs/screenshot-settings.png" alt="Settings window" width="520">
+
 ## Command line
 
 There's also a small tool, `pstdump` (works on macOS and Linux):
