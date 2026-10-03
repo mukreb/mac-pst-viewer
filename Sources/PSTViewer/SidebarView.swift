@@ -15,18 +15,30 @@ struct SidebarView: View {
                             .contextMenu { folderMenu(node) }
                     }
                 } header: {
-                    HStack {
+                    HStack(spacing: 6) {
                         Image(systemName: "archivebox")
-                        Text(store.file.displayName)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .help(store.file.url.path)
+                        // The file name, not the store's internal display name: that is usually a
+                        // generic "Personal Folders" and doesn't tell several open files apart.
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(store.fileName)
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            if let storeName = store.storeNameIfDifferent {
+                                Text(storeName)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .help(store.file.url.path)
                         Spacer()
                         Menu {
-                            Button("Bestandsinformatie…") { infoStore = store }
-                            Button("Toon in Finder") { NSWorkspace.shared.activateFileViewerSelecting([store.file.url]) }
+                            Button(tr("File Info…", "Bestandsinformatie…")) { infoStore = store }
+                            Button(tr("Show in Finder", "Toon in Finder")) { NSWorkspace.shared.activateFileViewerSelecting([store.file.url]) }
                             Divider()
-                            Button("Sluit bestand") { model.close(store) }
+                            Button(tr("Close File", "Sluit bestand")) { model.close(store) }
                         } label: {
                             Image(systemName: "ellipsis.circle")
                         }
@@ -43,9 +55,9 @@ struct SidebarView: View {
                 Button {
                     model.showOpenPanel()
                 } label: {
-                    Label("Open", systemImage: "plus")
+                    Label(tr("Open", "Open"), systemImage: "plus")
                 }
-                .help("Nog een PST-bestand openen")
+                .help(tr("Open another PST file", "Nog een PST-bestand openen"))
             }
         }
         .sheet(item: $infoStore) { store in
@@ -55,10 +67,10 @@ struct SidebarView: View {
 
     @ViewBuilder
     func folderMenu(_ node: FolderNode) -> some View {
-        Button("Exporteer map als mbox…") { model.exportFolderAsMbox(node.ref) }
-        Button("Exporteer map als .eml-bestanden…") { model.exportFolderAsEML(node.ref, recursive: false) }
+        Button(tr("Export Folder as mbox…", "Exporteer map als mbox…")) { model.exportFolderAsMbox(node.ref) }
+        Button(tr("Export Folder as .eml Files…", "Exporteer map als .eml-bestanden…")) { model.exportFolderAsEML(node.ref, recursive: false) }
         if node.children != nil {
-            Button("Exporteer map met submappen als .eml-bestanden…") { model.exportFolderAsEML(node.ref, recursive: true) }
+            Button(tr("Export Folder and Subfolders as .eml Files…", "Exporteer map met submappen als .eml-bestanden…")) { model.exportFolderAsEML(node.ref, recursive: true) }
         }
     }
 }
@@ -81,7 +93,7 @@ struct FolderRow: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
                     .background(Color.accentColor.opacity(0.25), in: Capsule())
-                    .help("\(node.folder.unreadCount) ongelezen")
+                    .help(tr("\(node.folder.unreadCount) unread", "\(node.folder.unreadCount) ongelezen"))
             } else if node.folder.contentCount > 0 {
                 Text("\(node.folder.contentCount)")
                     .font(.caption)
@@ -114,7 +126,7 @@ struct FileInfoView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(store.file.displayName)
+            Text(store.fileName)
                 .font(.title2.weight(.semibold))
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
                 ForEach(store.file.info, id: \.0) { item in
@@ -124,21 +136,21 @@ struct FileInfoView: View {
                     }
                 }
                 GridRow {
-                    Text("Mappen").foregroundStyle(.secondary)
+                    Text(tr("Folders", "Mappen")).foregroundStyle(.secondary)
                     Text("\(store.root.allFolders.count)")
                 }
                 GridRow {
-                    Text("Items").foregroundStyle(.secondary)
+                    Text(tr("Items", "Items")).foregroundStyle(.secondary)
                     Text("\(store.root.totalCount)")
                 }
                 GridRow {
-                    Text("Pad").foregroundStyle(.secondary)
+                    Text(tr("Path", "Pad")).foregroundStyle(.secondary)
                     Text(store.file.url.path).textSelection(.enabled).lineLimit(3)
                 }
             }
             HStack {
                 Spacer()
-                Button("Sluiten") { dismiss() }
+                Button(tr("Close", "Sluiten")) { dismiss() }
                     .keyboardShortcut(.defaultAction)
             }
         }

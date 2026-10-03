@@ -24,22 +24,23 @@ struct AttachmentBar: View {
                             .onTapGesture { preview(att) }
                             .contextMenu {
                                 if att.isEmbeddedMessage {
-                                    Button("Open bericht") { openEmbedded(att) }
+                                    Button(tr("Open Message", "Open bericht")) { openEmbedded(att) }
                                 } else {
-                                    Button("Snel bekijken") { preview(att) }
-                                    Button("Open") { open(att) }
+                                    Button(tr("Quick Look", "Snel bekijken")) { preview(att) }
+                                    Button(tr("Open", "Open")) { open(att) }
                                 }
-                                Button("Bewaar als…") { save(att) }
+                                Button(tr("Save As…", "Bewaar als…")) { save(att) }
                             }
-                            .help(att.isEmbeddedMessage ? "Klik om het bijgevoegde bericht te openen"
-                                                        : "Klik: snel bekijken · dubbelklik: openen")
+                            .help(att.isEmbeddedMessage ? tr("Click to open the attached message", "Klik om het bijgevoegde bericht te openen")
+                                                        : tr("Click: Quick Look · double-click: open", "Klik: snel bekijken · dubbelklik: openen"))
                     }
                 }
                 .padding(.vertical, 6)
             }
             if attachments.count > 1 {
-                Button("Alles bewaren…") { saveAll() }
+                Button(tr("Save All…", "Alles bewaren…")) { saveAll() }
                     .controlSize(.small)
+                    .glassButtonStyle()
                     .padding(.top, 6)
             }
         }
@@ -60,7 +61,7 @@ struct AttachmentBar: View {
             await MainActor.run {
                 switch result {
                 case .success(let url): quickLookURL = url
-                case .failure(let error): model.errorMessage = "Kan bijlage niet tonen: \(error)"
+                case .failure(let error): model.errorMessage = tr("Can't show attachment: \(error)", "Kan bijlage niet tonen: \(error)")
                 }
             }
         }
@@ -74,7 +75,7 @@ struct AttachmentBar: View {
             await MainActor.run {
                 switch result {
                 case .success(let url): NSWorkspace.shared.open(url)
-                case .failure(let error): model.errorMessage = "Kan bijlage niet openen: \(error)"
+                case .failure(let error): model.errorMessage = tr("Can't open attachment: \(error)", "Kan bijlage niet openen: \(error)")
                 }
             }
         }
@@ -99,7 +100,7 @@ struct AttachmentBar: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Bewaar hier"
+        panel.prompt = tr("Save Here", "Bewaar hier")
         guard panel.runModal() == .OK, let dir = panel.url else { return }
         let message = self.message
         let attachments = self.attachments
@@ -121,7 +122,8 @@ struct AttachmentBar: View {
             await MainActor.run {
                 NSWorkspace.shared.activateFileViewerSelecting([dir])
                 if !failed.isEmpty {
-                    model.errorMessage = "\(failed.count) bijlage(n) konden niet worden bewaard:\n\n" + failed.joined(separator: "\n")
+                    model.errorMessage = tr("\(failed.count) attachment(s) couldn't be saved:", "\(failed.count) bijlage(n) konden niet worden bewaard:")
+                        + "\n\n" + failed.joined(separator: "\n")
                 }
             }
         }
@@ -190,9 +192,10 @@ struct AttachmentChip: View {
                 }
             }
         }
-        .padding(.horizontal, 8)
+        .padding(.leading, 6)
+        .padding(.trailing, 12)
         .padding(.vertical, 4)
-        .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 7))
-        .contentShape(RoundedRectangle(cornerRadius: 7))
+        .background(.quaternary.opacity(0.6), in: Capsule())
+        .contentShape(Capsule())
     }
 }

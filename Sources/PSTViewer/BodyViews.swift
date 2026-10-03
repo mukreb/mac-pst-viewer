@@ -176,17 +176,17 @@ struct PropertiesView: View {
                 || $0.tag.localizedCaseInsensitiveContains(filter)
         }
         VStack(spacing: 0) {
-            TextField("Filter eigenschappen", text: $filter)
+            TextField(tr("Filter properties", "Filter eigenschappen"), text: $filter)
                 .textFieldStyle(.roundedBorder)
                 .padding(8)
             Table(shown) {
-                TableColumn("Tag") { Text($0.tag).font(.system(.caption, design: .monospaced)) }
+                TableColumn(tr("Tag", "Tag")) { Text($0.tag).font(.system(.caption, design: .monospaced)) }
                     .width(min: 80, ideal: 90, max: 100)
-                TableColumn("Naam") { Text($0.name).lineLimit(1).help($0.name) }
+                TableColumn(tr("Name", "Naam")) { Text($0.name).lineLimit(1).help($0.name) }
                     .width(min: 120, ideal: 200)
-                TableColumn("Type") { Text($0.type).foregroundStyle(.secondary) }
+                TableColumn(tr("Type", "Type")) { Text($0.type).foregroundStyle(.secondary) }
                     .width(min: 50, ideal: 70, max: 90)
-                TableColumn("Waarde") { item in
+                TableColumn(tr("Value", "Waarde")) { item in
                     Text(item.value).lineLimit(2).textSelection(.enabled).help(String(item.value.prefix(1000)))
                 }
             }

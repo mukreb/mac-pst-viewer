@@ -77,12 +77,12 @@ public final class Message: @unchecked Sendable {
 
     /// Set when a body property (text, HTML or RTF) exists but cannot be read.
     public var bodyError: String? {
-        for (id, label) in [(PropID.body, "tekst"), (PropID.html, "HTML"), (PropID.rtfCompressed, "RTF")] {
-            do { _ = try pc.decodedValue(id) } catch { return "berichttekst (\(label)) kan niet worden gelezen (\(error))" }
+        for (id, label) in [(PropID.body, tr("text", "tekst")), (PropID.html, "HTML"), (PropID.rtfCompressed, "RTF")] {
+            do { _ = try pc.decodedValue(id) } catch { return tr("message body (\(label)) cannot be read (\(error))", "berichttekst (\(label)) kan niet worden gelezen (\(error))") }
         }
         // Compressed RTF that cannot be fully decompressed would otherwise export truncated.
         if case .binary(let b)? = pc.value(PropID.rtfCompressed), !b.isEmpty, RTF.decompress(b) == nil {
-            return "berichttekst (RTF) is beschadigd"
+            return tr("message body (RTF) is damaged", "berichttekst (RTF) is beschadigd")
         }
         return nil
     }
@@ -149,7 +149,7 @@ public final class Message: @unchecked Sendable {
     }
 
     public var summary: MessageSummary {
-        MessageSummary(nid: nid, subject: subject, from: fromName, to: displayTo, date: date,
+        MessageSummary(nid: nid, subject: subject, from: fromName, to: displayTo, cc: displayCc, date: date,
                        size: Int(pc.value(PropID.messageSize)?.intValue ?? 0), flags: flags,
                        messageClass: messageClass, importance: importance)
     }
@@ -164,13 +164,13 @@ public final class Message: @unchecked Sendable {
 
     private lazy var recipientLoad: (list: [Recipient], error: String?) = {
         let table: NodeRef?
-        do { table = try node.subnode(0x692) } catch { return ([], "ontvangers kunnen niet worden gevonden (\(error))") }
+        do { table = try node.subnode(0x692) } catch { return ([], tr("recipients cannot be found (\(error))", "ontvangers kunnen niet worden gevonden (\(error))")) }
         guard let sub = table else { return ([], nil) }  // no recipient table
         let tc: TableContext
-        do { tc = try TableContext(sub) } catch { return ([], "ontvangerstabel kan niet worden gelezen (\(error))") }
+        do { tc = try TableContext(sub) } catch { return ([], tr("recipient table cannot be read (\(error))", "ontvangerstabel kan niet worden gelezen (\(error))")) }
         let rows = tc.rows()
         if rows.contains(where: { $0.failedCells > 0 }) {
-            return ([], "gegevens van een ontvanger kunnen niet worden gelezen")
+            return ([], tr("a recipient's data cannot be read", "gegevens van een ontvanger kunnen niet worden gelezen"))
         }
         let list = rows.enumerated().map { i, row -> Recipient in
             let name = row[PropID.displayName]?.stringValue(codepage: codepage) ?? ""
@@ -211,15 +211,15 @@ public final class Message: @unchecked Sendable {
     private lazy var attachmentLoad: (list: [Attachment], errors: [String]) = {
         let table: NodeRef?
         do { table = try node.subnode(0x671) } catch {
-            return ([], ["bijlagen kunnen niet worden gevonden (\(error))"])
+            return ([], [tr("attachments cannot be found (\(error))", "bijlagen kunnen niet worden gevonden (\(error))")])
         }
         guard let sub = table else { return ([], []) }  // no attachment table: no attachments
-        guard let tc = try? TableContext(sub) else { return ([], ["bijlagentabel kan niet worden gelezen"]) }
+        guard let tc = try? TableContext(sub) else { return ([], [tr("attachment table cannot be read", "bijlagentabel kan niet worden gelezen")]) }
         var result: [Attachment] = []
         var errors: [String] = []
         for row in tc.rows() {
             guard let attNode = try? node.subnode(row.rowID), let apc = try? PropertyContext(attNode) else {
-                errors.append("bijlage \(result.count + errors.count + 1) kan niet worden gelezen")
+                errors.append(tr("attachment \(result.count + errors.count + 1) cannot be read", "bijlage \(result.count + errors.count + 1) kan niet worden gelezen"))
                 continue
             }
             func s(_ id: UInt16) -> String { apc.value(id)?.stringValue(codepage: codepage) ?? "" }
@@ -230,7 +230,7 @@ public final class Message: @unchecked Sendable {
             var embedded: UInt32?
             if case .object(let enid, _)? = apc.value(PropID.attachData) { embedded = enid }
             if name.isEmpty {
-                name = method == 5 ? "Bijgevoegd bericht" : "bijlage-\(result.count + 1)"
+                name = method == 5 ? tr("Attached message", "Bijgevoegd bericht") : tr("attachment-\(result.count + 1)", "bijlage-\(result.count + 1)")
             }
             var size = Int(apc.value(PropID.attachSize)?.intValue ?? 0)
             if case .binary(let b)? = apc.value(PropID.attachData) { size = b.count }
@@ -310,6 +310,7 @@ public final class Message: @unchecked Sendable {
         let df = DateFormatter()
         df.dateStyle = .full
         df.timeStyle = .short
+        df.locale = Localization.locale
         func add(_ label: String, _ v: PropertyValue?) {
             guard let v else { return }
             let s: String
@@ -319,38 +320,38 @@ public final class Message: @unchecked Sendable {
         }
         switch kind {
         case .contact:
-            add("Naam", pc.value(PropID.displayName))
-            add("Voornaam", pc.value(PropID.givenName))
-            add("Achternaam", pc.value(PropID.surname))
-            add("Bedrijf", pc.value(PropID.companyName))
-            add("Functie", pc.value(PropID.title))
-            add("Afdeling", pc.value(PropID.department))
-            add("E-mail", named(PropertySet.address, 0x8083))
-            add("E-mail 2", named(PropertySet.address, 0x8093))
-            add("E-mail 3", named(PropertySet.address, 0x80A3))
-            add("Telefoon werk", pc.value(PropID.businessPhone))
-            add("Telefoon thuis", pc.value(PropID.homePhone))
-            add("Mobiel", pc.value(PropID.mobilePhone))
-            add("Fax werk", pc.value(PropID.businessFax))
-            add("Adres werk", pc.value(PropID.businessAddressStreet))
-            add("Plaats werk", pc.value(PropID.businessAddressCity))
-            add("Adres thuis", pc.value(PropID.homeStreet))
-            add("Plaats thuis", pc.value(PropID.homeCity))
-            add("Website", pc.value(PropID.businessHomePage))
-            add("Verjaardag", pc.value(PropID.birthday))
+            add(tr("Name", "Naam"), pc.value(PropID.displayName))
+            add(tr("First name", "Voornaam"), pc.value(PropID.givenName))
+            add(tr("Last name", "Achternaam"), pc.value(PropID.surname))
+            add(tr("Company", "Bedrijf"), pc.value(PropID.companyName))
+            add(tr("Job title", "Functie"), pc.value(PropID.title))
+            add(tr("Department", "Afdeling"), pc.value(PropID.department))
+            add(tr("Email", "E-mail"), named(PropertySet.address, 0x8083))
+            add(tr("Email 2", "E-mail 2"), named(PropertySet.address, 0x8093))
+            add(tr("Email 3", "E-mail 3"), named(PropertySet.address, 0x80A3))
+            add(tr("Work phone", "Telefoon werk"), pc.value(PropID.businessPhone))
+            add(tr("Home phone", "Telefoon thuis"), pc.value(PropID.homePhone))
+            add(tr("Mobile", "Mobiel"), pc.value(PropID.mobilePhone))
+            add(tr("Work fax", "Fax werk"), pc.value(PropID.businessFax))
+            add(tr("Work address", "Adres werk"), pc.value(PropID.businessAddressStreet))
+            add(tr("Work city", "Plaats werk"), pc.value(PropID.businessAddressCity))
+            add(tr("Home address", "Adres thuis"), pc.value(PropID.homeStreet))
+            add(tr("Home city", "Plaats thuis"), pc.value(PropID.homeCity))
+            add(tr("Website", "Website"), pc.value(PropID.businessHomePage))
+            add(tr("Birthday", "Verjaardag"), pc.value(PropID.birthday))
         case .appointment, .meetingRequest:
-            add("Begin", named(PropertySet.appointment, 0x820D) ?? pc.value(PropID.startDate))
-            add("Einde", named(PropertySet.appointment, 0x820E) ?? pc.value(PropID.endDate))
-            add("Locatie", named(PropertySet.appointment, 0x8208))
-            add("Organisator", pc.value(PropID.sentRepresentingName))
+            add(tr("Start", "Begin"), named(PropertySet.appointment, 0x820D) ?? pc.value(PropID.startDate))
+            add(tr("End", "Einde"), named(PropertySet.appointment, 0x820E) ?? pc.value(PropID.endDate))
+            add(tr("Location", "Locatie"), named(PropertySet.appointment, 0x8208))
+            add(tr("Organizer", "Organisator"), pc.value(PropID.sentRepresentingName))
         case .task:
-            add("Begindatum", named(PropertySet.task, 0x8104))
-            add("Einddatum", named(PropertySet.task, 0x8105))
+            add(tr("Start date", "Begindatum"), named(PropertySet.task, 0x8104))
+            add(tr("Due date", "Einddatum"), named(PropertySet.task, 0x8105))
             if let pct = named(PropertySet.task, 0x8102), case .double(let d) = pct {
-                out.append(("Voltooid", "\(Int(d * 100))%"))
+                out.append((tr("Complete", "Voltooid"), "\(Int(d * 100))%"))
             }
         case .distributionList:
-            add("Naam", named(PropertySet.address, 0x8053))
+            add(tr("Name", "Naam"), named(PropertySet.address, 0x8053))
         default:
             break
         }

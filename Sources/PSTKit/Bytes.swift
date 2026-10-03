@@ -10,11 +10,11 @@ public enum PSTError: Error, CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case .notAPSTFile: return "Dit is geen PST/OST-bestand (ongeldige signatuur)."
-        case .unsupportedVersion(let v): return "Niet-ondersteunde PST-versie: \(v)."
-        case .unsupportedEncryption(let e): return "Niet-ondersteunde versleuteling: \(e)."
-        case .corrupt(let s): return "Beschadigde gegevens: \(s)"
-        case .notFound(let s): return "Niet gevonden: \(s)"
+        case .notAPSTFile: return tr("This is not a PST/OST file (invalid signature).", "Dit is geen PST/OST-bestand (ongeldige signatuur).")
+        case .unsupportedVersion(let v): return tr("Unsupported PST version: \(v).", "Niet-ondersteunde PST-versie: \(v).")
+        case .unsupportedEncryption(let e): return tr("Unsupported encryption: \(e).", "Niet-ondersteunde versleuteling: \(e).")
+        case .corrupt(let s): return tr("Damaged data: \(s)", "Beschadigde gegevens: \(s)")
+        case .notFound(let s): return tr("Not found: \(s)", "Niet gevonden: \(s)")
         }
     }
 }

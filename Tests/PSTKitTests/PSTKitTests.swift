@@ -124,7 +124,7 @@ final class PSTKitTests: XCTestCase {
         let m = try pst.message(nid: s.nid)
         XCTAssertEqual(m.kind, .contact)
         let details = Dictionary(m.details, uniquingKeysWith: { a, _ in a })
-        XCTAssertEqual(details["E-mail"], "contact1@rjohnson.id.au")
+        XCTAssertEqual(details["Email"], "contact1@rjohnson.id.au")
     }
 
     func testEMLExport() throws {
@@ -269,5 +269,27 @@ final class PSTKitTests: XCTestCase {
     func testCodepages() {
         XCTAssertEqual(PSTText.decode([0x63, 0x61, 0x66, 0xE9], codepage: 1252), "café")
         XCTAssertEqual(PSTText.decode([0x80], codepage: 1252), "€")
+    }
+
+    // MARK: - Localization and folder kinds
+
+    func testLanguageSelection() {
+        XCTAssertEqual(AppLanguage.best(for: ["nl-NL", "en-US"]), .dutch)
+        XCTAssertEqual(AppLanguage.best(for: ["de-DE", "en-GB"]), .english)
+        XCTAssertEqual(AppLanguage.best(for: ["fr-FR"]), .english, "unsupported languages fall back to English")
+        XCTAssertEqual(AppLanguage.best(for: []), .english)
+
+        let saved = Localization.current
+        defer { Localization.current = saved }
+        Localization.current = .dutch
+        XCTAssertEqual(PSTError.notFound("x").description, "Niet gevonden: x")
+        Localization.current = .english
+        XCTAssertEqual(PSTError.notFound("x").description, "Not found: x")
+    }
+
+    func testSentItemsFolderKind() throws {
+        let root = try fixture("dist-list").rootFolder()
+        XCTAssertEqual(try XCTUnwrap(folder(root, named: "Sent Items")).kind, .sent)
+        XCTAssertEqual(try XCTUnwrap(folder(root, named: "Inbox")).kind, .inbox)
     }
 }

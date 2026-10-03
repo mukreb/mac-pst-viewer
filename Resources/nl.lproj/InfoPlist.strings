@@ -1,0 +1,5 @@
+/* Dutch Info.plist strings. */
+"CFBundleDisplayName" = "PST Viewer";
+"Outlook Data File" = "Outlook-gegevensbestand";
+"Outlook Offline Data File" = "Outlook offline-gegevensbestand";
+"Outlook Personal Folders" = "Outlook Persoonlijke mappen";
