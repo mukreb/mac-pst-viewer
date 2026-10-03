@@ -18,6 +18,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Needed when started as a bare executable (`swift run`) instead of an .app bundle.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+
+        // `--snapshot <file.png>`: render the main window to a PNG and quit (used by CI).
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
+            let out = URL(fileURLWithPath: args[i + 1])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                NSApp.windows.first { $0.isVisible && $0.contentView != nil }?
+                    .setFrame(NSRect(x: 40, y: 40, width: 1380, height: 820), display: true)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                AppDelegate.snapshot(to: out)
+                NSApp.terminate(nil)
+            }
+        }
+    }
+
+    static func snapshot(to url: URL) {
+        for w in NSApp.windows {
+            print("window: \(w.title) visible=\(w.isVisible) frame=\(w.frame)")
+        }
+        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.frame.width > 400 }),
+              let view = window.contentView?.superview ?? window.contentView,
+              let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+            print("snapshot: no window")
+            return
+        }
+        view.cacheDisplay(in: view.bounds, to: rep)
+        try? rep.representation(using: .png, properties: [:])?.write(to: url)
+        print("snapshot written to \(url.path)")
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -44,7 +73,7 @@ struct PSTViewerApp: App {
                     for url in AppDelegate.pendingURLs { model.open(url) }
                     AppDelegate.pendingURLs.removeAll()
                     // Allow `PSTViewer /path/to/file.pst` from the command line.
-                    for arg in CommandLine.arguments.dropFirst() where !arg.hasPrefix("-") {
+                    for arg in CommandLine.arguments.dropFirst() where !arg.hasPrefix("-") && !arg.hasSuffix(".png") {
                         let url = URL(fileURLWithPath: arg)
                         if ["pst", "ost"].contains(url.pathExtension.lowercased()) { model.open(url) }
                     }
