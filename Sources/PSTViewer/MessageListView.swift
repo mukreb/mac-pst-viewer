@@ -37,6 +37,10 @@ struct MessageListView: View {
             model.selectedMessage = newValue.count == 1 ? newValue.first : nil
         }
         .onChange(of: model.selectedFolder) { _ in selection.removeAll() }
+        // A new search can hide the selected message; don't keep showing or exporting it.
+        .onChange(of: model.searchText) { _ in selection.removeAll() }
+        .onChange(of: model.searchScope) { _ in selection.removeAll() }
+        .onChange(of: model.searchBodies) { _ in selection.removeAll() }
     }
 
     var header: some View {

@@ -193,13 +193,34 @@ public enum EMLWriter {
     static func mimeParam(_ key: String, _ value: String) -> String {
         let v = flat(value)
         if v.unicodeScalars.allSatisfy({ $0.isASCII }) { return "\(key)=\(quotedParam(v))" }
-        let fallback = String(v.unicodeScalars.map { $0.isASCII ? Character($0) : "_" })
+        var fallback = String(v.unicodeScalars.map { $0.isASCII ? Character($0) : "_" })
+        if fallback.count > 60 { fallback = String(fallback.prefix(50)) + "…" + String(fallback.suffix(9)) }
+        fallback = String(fallback.unicodeScalars.map { $0.isASCII ? Character($0) : "_" })
         let attrChar = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$&+-.^_`|~")
         let encoded = v.utf8.map { b -> String in
             let s = Unicode.Scalar(b)
             return b < 0x80 && attrChar.contains(s) ? String(Character(s)) : String(format: "%%%02X", b)
         }.joined()
-        return "\(key)=\(quotedParam(fallback)); \(key)*=utf-8''\(encoded)"
+        // RFC 2231 §3: split long values into numbered continuations on folded lines,
+        // never inside a %XX escape.
+        var segments: [String] = []
+        var current = ""
+        var i = encoded.startIndex
+        while i < encoded.endIndex {
+            let step = encoded[i] == "%" ? 3 : 1
+            let end = encoded.index(i, offsetBy: step, limitedBy: encoded.endIndex) ?? encoded.endIndex
+            if current.count + step > 60 { segments.append(current); current = "" }
+            current += encoded[i..<end]
+            i = end
+        }
+        if !current.isEmpty { segments.append(current) }
+        if segments.count <= 1 {
+            return "\(key)=\(quotedParam(fallback));\r\n \(key)*=utf-8''\(encoded)"
+        }
+        let parts = segments.enumerated().map { n, seg in
+            n == 0 ? "\(key)*0*=utf-8''\(seg)" : "\(key)*\(n)*=\(seg)"
+        }
+        return "\(key)=\(quotedParam(fallback));\r\n " + parts.joined(separator: ";\r\n ")
     }
 
     /// RFC 2047 encoded-word for non-ASCII header values.

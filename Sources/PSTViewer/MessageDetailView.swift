@@ -129,7 +129,7 @@ struct MessageDetailView: View {
         panel.nameFieldStringValue = EMLWriter.safeName(message.subject) + ".eml"
         panel.allowedContentTypes = [.emailMessage]
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do { try EMLWriter.eml(for: message).write(to: url) } catch { model.errorMessage = "\(error)" }
+        model.exportMessage(message, to: url)
     }
 }
 

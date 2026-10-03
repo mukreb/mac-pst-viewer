@@ -379,7 +379,7 @@ final class ViewerModel: ObservableObject {
             panel.nameFieldStringValue = EMLWriter.safeName(m.subject) + ".eml"
             panel.allowedContentTypes = [.emailMessage]
             guard panel.runModal() == .OK, let url = panel.url else { return }
-            do { try EMLWriter.eml(for: m).write(to: url) } catch { errorMessage = "\(error)" }
+            exportMessage(m, to: url)
             return
         }
         let panel = NSOpenPanel()
@@ -402,6 +402,20 @@ final class ViewerModel: ObservableObject {
                 }
                 await progress(i + 1)
             }
+            return failures
+        }
+    }
+
+    /// Writes one message as .eml in the background (large attachments can take a while).
+    func exportMessage(_ m: Message, to url: URL) {
+        runExport(count: 1, text: "Bericht exporteren…") { progress in
+            var failures: [String] = []
+            do {
+                try EMLWriter.eml(for: m).write(to: url)
+            } catch {
+                failures.append("\(m.subject.isEmpty ? "(geen onderwerp)" : m.subject): \(error.localizedDescription)")
+            }
+            await progress(1)
             return failures
         }
     }
