@@ -79,14 +79,22 @@ struct AttachmentBar: View {
         panel.prompt = "Bewaar hier"
         guard panel.runModal() == .OK, let dir = panel.url else { return }
         var used = Set<String>()
+        var failures: [String] = []
         for att in attachments {
             let name = fileName(for: att)
             let ext = (name as NSString).pathExtension
             let base = (name as NSString).deletingPathExtension
             let url = ViewerModel.uniqueURL(in: dir, base: base, ext: ext.isEmpty ? "bin" : ext, used: &used)
-            try? contents(of: att).write(to: url)
+            do {
+                try contents(of: att).write(to: url)
+            } catch {
+                failures.append("• \(att.filename): \(error.localizedDescription)")
+            }
         }
         NSWorkspace.shared.activateFileViewerSelecting([dir])
+        if !failures.isEmpty {
+            model.errorMessage = "\(failures.count) bijlage(n) konden niet worden bewaard:\n\n" + failures.joined(separator: "\n")
+        }
     }
 
     // MARK: Files
@@ -98,17 +106,22 @@ struct AttachmentBar: View {
 
     func contents(of att: Attachment) throws -> Data {
         if att.isEmbeddedMessage, let m = try message.embeddedMessage(att) {
-            return EMLWriter.eml(for: m)
+            return try EMLWriter.eml(for: m)
         }
         return try message.data(for: att)
+    }
+
+    /// Preview/open copies live here; the folder is emptied at launch and at quit.
+    static let temporaryRoot = FileManager.default.temporaryDirectory.appendingPathComponent("PSTViewer", isDirectory: true)
+
+    static func purgeTemporaryFiles() {
+        try? FileManager.default.removeItem(at: temporaryRoot)
     }
 
     func temporaryFile(for att: Attachment) throws -> URL {
         // A fresh directory per request: NIDs and file names are only unique within one PST,
         // and several PSTs can be open at the same time.
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("PSTViewer", isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let dir = AttachmentBar.temporaryRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent(fileName(for: att))
         try contents(of: att).write(to: url)

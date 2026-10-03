@@ -2,7 +2,7 @@ import Foundation
 
 /// Builds RFC 5322 / MIME (.eml) messages and mbox files from PST messages.
 public enum EMLWriter {
-    public static func eml(for m: Message) -> Data {
+    public static func eml(for m: Message) throws -> Data {
         var out = ""
         let boundaryMixed = "----=_PSTViewer_mixed_\(m.nid)"
         let boundaryAlt = "----=_PSTViewer_alt_\(m.nid)"
@@ -48,9 +48,13 @@ public enum EMLWriter {
                 if a.isEmbeddedMessage, let em = try? m.embeddedMessage(a) {
                     out += "Content-Type: message/rfc822\r\n"
                     out += "Content-Disposition: attachment; filename=\(quotedParam(safeName(a.filename) + ".eml"))\r\n\r\n"
-                    out += String(decoding: eml(for: em), as: UTF8.self)
+                    out += String(decoding: try eml(for: em), as: UTF8.self)
                 } else {
-                    let data = (try? m.data(for: a)) ?? Data()
+                    // Fail loudly rather than export a silently empty attachment.
+                    let data: Data
+                    do { data = try m.data(for: a) } catch {
+                        throw PSTError.corrupt("bijlage '\(a.filename)' kan niet worden gelezen (\(error))")
+                    }
                     let mimeTag = a.mimeType.components(separatedBy: .whitespacesAndNewlines).joined()
                     let mime = mimeTag.contains("/") ? mimeTag : "application/octet-stream"
                     out += "Content-Type: \(mime); name=\(quotedParam(a.filename))\r\n"
@@ -69,8 +73,8 @@ public enum EMLWriter {
     }
 
     /// Appends messages to mbox format (mboxrd quoting).
-    public static func mboxEntry(for m: Message) -> Data {
-        let eml = String(decoding: eml(for: m), as: UTF8.self)
+    public static func mboxEntry(for m: Message) throws -> Data {
+        let eml = String(decoding: try eml(for: m), as: UTF8.self)
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
         df.timeZone = TimeZone(identifier: "UTC")

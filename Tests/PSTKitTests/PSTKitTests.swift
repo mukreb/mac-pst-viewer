@@ -132,7 +132,7 @@ final class PSTKitTests: XCTestCase {
         let root = try pst.rootFolder()
         let inbox = try XCTUnwrap(folder(root, named: "Inbox"))
         let s = try XCTUnwrap(try pst.messages(in: inbox.nid).first)
-        let eml = String(decoding: EMLWriter.eml(for: try pst.message(nid: s.nid)), as: UTF8.self)
+        let eml = String(decoding: try EMLWriter.eml(for: try pst.message(nid: s.nid)), as: UTF8.self)
         XCTAssertTrue(eml.contains("Subject: "))
         XCTAssertTrue(eml.contains("multipart/mixed"))
         XCTAssertTrue(eml.contains("Content-ID: <"))

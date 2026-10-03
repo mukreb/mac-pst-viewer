@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Needed when started as a bare executable (`swift run`) instead of an .app bundle.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        AttachmentBar.purgeTemporaryFiles()
 
         // Safety net: make sure there is always a main window.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -101,6 +102,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag { AppDelegate.ensureMainWindow() }
         return true
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        AttachmentBar.purgeTemporaryFiles()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

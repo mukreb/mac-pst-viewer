@@ -45,7 +45,7 @@ do {
         guard args.count > 3, let nid = parseNID(args[3]) else { print("nid ontbreekt"); exit(1) }
         let m = try pst.message(nid: nid)
         if mode == "--eml" {
-            print(String(decoding: EMLWriter.eml(for: m), as: UTF8.self))
+            print(String(decoding: try EMLWriter.eml(for: m), as: UTF8.self))
         } else if mode == "--props" {
             for p in m.allProperties {
                 print(String(format: "0x%08X %@ = %@", p.tag, m.propertyName(p.id), String(p.value.description.prefix(200))))

@@ -259,11 +259,14 @@ enum HTMLPreparer {
         if out.range(of: "cid:", options: .caseInsensitive) != nil {
             for att in message.attachments where !att.contentID.isEmpty {
                 let cid = att.contentID.trimmingCharacters(in: CharacterSet(charactersIn: "<>"))
-                guard out.range(of: "cid:\(cid)", options: .caseInsensitive) != nil,
-                      let data = try? message.data(for: att) else { continue }
+                // Match the complete reference only, so `cid:image1` never touches `cid:image10`.
+                let pattern = "cid:" + NSRegularExpression.escapedPattern(for: cid) + "(?=[\"'\\s)>]|$)"
+                guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { continue }
+                let range = NSRange(out.startIndex..., in: out)
+                guard regex.firstMatch(in: out, range: range) != nil, let data = try? message.data(for: att) else { continue }
                 let mime = att.mimeType.isEmpty ? mimeType(for: att.filename) : att.mimeType
-                out = out.replacingOccurrences(of: "cid:\(cid)", with: "data:\(mime);base64,\(data.base64EncodedString())",
-                                               options: .caseInsensitive)
+                let replacement = NSRegularExpression.escapedTemplate(for: "data:\(mime);base64,\(data.base64EncodedString())")
+                out = regex.stringByReplacingMatches(in: out, range: range, withTemplate: replacement)
             }
         }
         let style = """
