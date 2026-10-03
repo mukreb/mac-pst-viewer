@@ -92,6 +92,7 @@ final class PSTKitTests: XCTestCase {
         var kinds: [String] = []
         for s in items {
             let m = try pst.message(nid: s.nid)
+            XCTAssertNil(m.bodyError)  // real Outlook RTF passes the CRC check
             switch m.body {
             case .html(let h): kinds.append("html"); XCTAssertTrue(h.lowercased().contains("<html"))
             case .rtf(let r): kinds.append("rtf"); XCTAssertTrue(RTF.plainText([UInt8](r)).contains("Forwarded RTF"))
@@ -151,6 +152,10 @@ final class PSTKitTests: XCTestCase {
         XCTAssertEqual(out, "{\\rtf1\\ansi\\ansicpg1252\\pard hello world}\r\n")
         // Truncated stream: rejected instead of returning a partial body.
         XCTAssertNil(RTF.decompress(Array(compressed.prefix(30))))
+        // A corrupted literal that keeps the decoded length is caught by the CRC.
+        var altered = compressed
+        altered[20] ^= 0x01
+        XCTAssertNil(RTF.decompress(altered))
     }
 
     func testRTFHTMLDeencapsulation() {
@@ -171,6 +176,8 @@ final class PSTKitTests: XCTestCase {
         var bad = z
         bad[bad.count - 1] ^= 0xFF
         XCTAssertNil(Inflate.zlib(bad))
+        // A zlib stream that lacks its checksum trailer is truncated.
+        XCTAssertNil(Inflate.zlib(Array(z.dropLast(2))))
         // Output beyond the advertised size is rejected.
         XCTAssertNil(Inflate.zlib(z, expectedSize: 10))
         XCTAssertNotNil(Inflate.zlib(z, expectedSize: 23))
@@ -235,6 +242,8 @@ final class PSTKitTests: XCTestCase {
         for _ in 0..<64 { lying += [0x00] + Array("abcdefgh".utf8) }
         let size = UInt32(lying.count - 4)
         lying[0] = UInt8(size & 0xFF); lying[1] = UInt8(size >> 8)
+        let crc = RTF.crc32(lying[16...])
+        for i in 0..<4 { lying[12 + i] = UInt8(truncatingIfNeeded: crc >> (8 * UInt32(i))) }
         XCTAssertEqual(RTF.decompress(lying)?.count, 4)
     }
 
