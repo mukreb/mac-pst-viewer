@@ -259,9 +259,11 @@ enum HTMLPreparer {
         if out.range(of: "cid:", options: .caseInsensitive) != nil {
             for att in message.attachments where !att.contentID.isEmpty {
                 let cid = att.contentID.trimmingCharacters(in: CharacterSet(charactersIn: "<>"))
-                guard out.contains("cid:\(cid)"), let data = try? message.data(for: att) else { continue }
+                guard out.range(of: "cid:\(cid)", options: .caseInsensitive) != nil,
+                      let data = try? message.data(for: att) else { continue }
                 let mime = att.mimeType.isEmpty ? mimeType(for: att.filename) : att.mimeType
-                out = out.replacingOccurrences(of: "cid:\(cid)", with: "data:\(mime);base64,\(data.base64EncodedString())")
+                out = out.replacingOccurrences(of: "cid:\(cid)", with: "data:\(mime);base64,\(data.base64EncodedString())",
+                                               options: .caseInsensitive)
             }
         }
         let style = """

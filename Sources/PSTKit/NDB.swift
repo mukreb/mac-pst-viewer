@@ -63,25 +63,22 @@ final class NDB: @unchecked Sendable {
             cryptMethod = header.u8(461)
             nbtRoot = UInt64(header.u32(188))
             bbtRoot = UInt64(header.u32(196))
-        case 23:
-            format = .unicode
-            cryptMethod = header.u8(513)
-            nbtRoot = header.u64(224)
-            bbtRoot = header.u64(240)
-        case 36:
-            format = .unicode4K
-            cryptMethod = header.u8(513)
-            nbtRoot = header.u64(224)
-            bbtRoot = header.u64(240)
         default:
-            // Versions 19..22 are Unicode in practice; treat >= 23 as Unicode as well.
-            if ver > 23 && ver < 36 || ver == 21 || ver == 22 {
+            // [MS-PST]: every version >= 23 is Unicode (36 is the Outlook 2013 OST with 4 KB
+            // pages, 37 may be WIP-protected). Some tools wrote 21/22. Detect the page size
+            // from the NBT root page instead of trusting the version number alone.
+            guard ver >= 21 else { throw PSTError.unsupportedVersion(ver) }
+            cryptMethod = header.u8(513)
+            nbtRoot = header.u64(224)
+            bbtRoot = header.u64(240)
+            let small = data.bytes(at: Int(min(nbtRoot, UInt64(Int.max))), count: 512)
+            let large = data.bytes(at: Int(min(nbtRoot, UInt64(Int.max))), count: 4096)
+            if small.u8(496) == 0x81 && small.u8(497) == 0x81 {
                 format = .unicode
-                cryptMethod = header.u8(513)
-                nbtRoot = header.u64(224)
-                bbtRoot = header.u64(240)
+            } else if large.u8(4072) == 0x81 && large.u8(4073) == 0x81 {
+                format = .unicode4K
             } else {
-                throw PSTError.unsupportedVersion(ver)
+                format = ver == 36 ? .unicode4K : .unicode
             }
         }
         guard cryptMethod <= 2 else { throw PSTError.unsupportedEncryption(cryptMethod) }

@@ -180,6 +180,19 @@ final class PSTKitTests: XCTestCase {
         XCTAssertTrue(RTF.plainText(rtf).contains("smile 😀 done"))
     }
 
+    func testLongEncodedWordsAreSplit() {
+        let subject = String(repeating: "één twee drie ", count: 8)
+        let encoded = EMLWriter.encodeWord(subject)
+        let words = encoded.components(separatedBy: "\r\n ")
+        XCTAssertGreaterThan(words.count, 1)
+        for w in words { XCTAssertLessThanOrEqual(w.count, 75) }
+        let decoded = words.map { w -> String in
+            let b64 = w.dropFirst("=?utf-8?B?".count).dropLast(2)
+            return String(decoding: Data(base64Encoded: String(b64))!, as: UTF8.self)
+        }.joined()
+        XCTAssertEqual(decoded, subject)
+    }
+
     func testSafeName() {
         XCTAssertEqual(EMLWriter.safeName(".."), "__")
         XCTAssertEqual(EMLWriter.safeName("."), "_")

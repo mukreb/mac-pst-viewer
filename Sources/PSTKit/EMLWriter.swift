@@ -129,7 +129,19 @@ public enum EMLWriter {
     /// RFC 2047 encoded-word for non-ASCII header values.
     static func encodeWord(_ s: String) -> String {
         if s.unicodeScalars.allSatisfy({ $0.isASCII }) { return s }
-        return "=?utf-8?B?\(Data(s.utf8).base64EncodedString())?="
+        // RFC 2047 §2: an encoded word may be at most 75 characters, so split the text into
+        // chunks of at most 45 UTF-8 bytes (never inside a character) and fold the header.
+        var words: [String] = []
+        var chunk = ""
+        for ch in s {
+            if chunk.utf8.count + String(ch).utf8.count > 45, !chunk.isEmpty {
+                words.append(chunk)
+                chunk = ""
+            }
+            chunk.append(ch)
+        }
+        if !chunk.isEmpty { words.append(chunk) }
+        return words.map { "=?utf-8?B?\(Data($0.utf8).base64EncodedString())?=" }.joined(separator: "\r\n ")
     }
 
     static func rfc2822(_ d: Date) -> String {

@@ -78,13 +78,18 @@ final class OpenStore: Identifiable {
 
     static func isSystemFolder(_ f: Folder) -> Bool {
         let n = f.name.lowercased()
-        let names = ["search root", "spam search folder 2", "ipm_views", "ipm_common_views", "reminders",
-                     "to-do search", "itemprocsearch", "freebusy data", "tracked mail processing",
-                     "racine (pour la recherche)", "zoekhoofdmap", "finder", "views", "common views",
-                     "shortcuts", "schedule", "deferred action", "spooler queue", "conversation action settings",
-                     "quick step settings", "yammer root", "recoverable items", "sync issues", "root - public",
-                     "non_ipm_subtree", "eforms registry", "organization forms"]
-        return names.contains(where: { n.hasPrefix($0) }) || n.hasPrefix("~")
+        // Exact names of folders Outlook/Exchange create for internal use.
+        let exact: Set<String> = [
+            "search root", "spam search folder 2", "ipm_views", "ipm_common_views", "reminders",
+            "to-do search", "itemprocsearch", "freebusy data", "tracked mail processing",
+            "racine (pour la recherche)", "zoekhoofdmap", "finder", "views", "common views",
+            "shortcuts", "schedule", "deferred action", "spooler queue", "conversation action settings",
+            "quick step settings", "yammer root", "recoverable items", "root - public",
+            "non_ipm_subtree", "eforms registry", "organization forms", "conversation history",
+        ]
+        // Distinctive prefixes (these folders carry suffixes such as "(This computer only)").
+        let prefixes = ["sync issues", "conversation action settings", "quick step settings", "recoverable items"]
+        return exact.contains(n) || prefixes.contains(where: { n.hasPrefix($0) }) || n.hasPrefix("~")
     }
 }
 
@@ -212,7 +217,16 @@ final class ViewerModel: ObservableObject {
         }
     }
 
+    /// Cancels a running search so it cannot publish rows of closed or rebuilt stores.
+    private func invalidateSearch() {
+        searchTask?.cancel()
+        searchGeneration += 1
+        isSearching = false
+        searchResults = nil
+    }
+
     func close(_ store: OpenStore) {
+        invalidateSearch()
         stores.removeAll { $0.id == store.id }
         if selectedFolder?.store == store.id {
             selectedFolder = nil
@@ -224,6 +238,7 @@ final class ViewerModel: ObservableObject {
 
     /// Rebuilds the sidebar (after toggling system folders).
     func rebuildStores() {
+        invalidateSearch()
         stores = stores.map { OpenStore(file: $0.file, root: $0.root, showSystemFolders: showSystemFolders) }
         selectedFolder = nil
         rows = []
