@@ -38,16 +38,21 @@ public final class PSTFile: @unchecked Sendable {
         self.url = url
         let data = try Data(contentsOf: url, options: [.alwaysMapped])
         ndb = try NDB(data: data)
+        // PST entry IDs are 4 flag bytes + 16-byte provider UID + the folder's NID (little-endian).
+        func entryNID(_ v: PropertyValue?) -> UInt32? {
+            guard case .binary(let b)? = v, b.count >= 24 else { return nil }
+            return UInt32(b[20]) | UInt32(b[21]) << 8 | UInt32(b[22]) << 16 | UInt32(b[23]) << 24
+        }
         if let store = try? propertyContext(nid: 0x21) {
             displayName = store.value(PropID.displayName)?.stringValue(codepage: PSTText.defaultCodepage) ?? ""
-            // PST entry IDs are 4 flag bytes + 16-byte provider UID + the folder's NID (little-endian).
             let special: [(UInt16, FolderKind)] = [(0x35E2, .outbox), (0x35E3, .trash), (0x35E4, .sent)]
             for (tag, kind) in special {
-                if case .binary(let b)? = store.value(tag), b.count >= 24 {
-                    let nid = UInt32(b[20]) | UInt32(b[21]) << 8 | UInt32(b[22]) << 16 | UInt32(b[23]) << 24
-                    specialFolders[nid] = kind
-                }
+                if let nid = entryNID(store.value(tag)) { specialFolders[nid] = kind }
             }
+        }
+        // PidTagIpmDraftsEntryId lives on the root folder rather than on the store.
+        if let root = try? propertyContext(nid: rootFolderNID), let nid = entryNID(root.value(0x36D7)) {
+            specialFolders[nid] = .drafts
         }
         if displayName.isEmpty { displayName = url.deletingPathExtension().lastPathComponent }
         loadNameMap()
