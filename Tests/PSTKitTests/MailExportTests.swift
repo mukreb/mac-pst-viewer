@@ -141,4 +141,17 @@ final class MailExportTests: XCTestCase {
         XCTAssertTrue(MboxExport.overlaps(alias, sources: [mail]))
         XCTAssertFalse(MboxExport.overlaps(dir.appendingPathComponent("new.mbox"), sources: [mail]))
     }
+
+    func testReexportingMboxDoesNotQuoteTwice() throws {
+        let source = temporaryMbox()
+        try Data("From a@b.c Thu Jan 01 00:00:00 1998\nSubject: Quoted\n\n>From the start\n>>From deeper\nplain\n\n".utf8).write(to: source)
+        var file = source
+        for _ in 0..<2 {
+            let out = temporaryMbox()
+            try MboxExport.export(stores: [try MailStores.open(file)], filter: MailFilter(), to: out)
+            let text = String(decoding: try Data(contentsOf: out), as: UTF8.self)
+            XCTAssertTrue(text.contains("\n>From the start\n>>From deeper\n"), text)
+            file = out
+        }
+    }
 }

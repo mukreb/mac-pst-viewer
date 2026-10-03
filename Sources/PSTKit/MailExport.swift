@@ -155,7 +155,18 @@ public enum MboxExport {
                         }
                         do {
                             let m = try store.message(nid: s.nid)
-                            guard filter.matches(s) || filter.matches(m, summary: s) else { continue }
+                            guard filter.matches(s) || filter.matches(m, summary: s) else {
+                                // A miss on data that couldn't be read might have been a match.
+                                var unreadable = m.recipientError.map { [$0] } ?? []
+                                if filter.searchBodies {
+                                    unreadable += (m.bodyError.map { [$0] } ?? []) + m.attachmentErrors
+                                }
+                                if !unreadable.isEmpty {
+                                    let subject = s.subject.isEmpty ? "(no subject)" : s.subject
+                                    report.failures.append("\(location) / \(subject): couldn't be searched completely (\(unreadable.joined(separator: "; ")))")
+                                }
+                                continue
+                            }
                             let id = m.messageID.trimmingCharacters(in: .whitespaces)
                             if !id.isEmpty, seenMessageIDs.contains(id) {
                                 report.duplicates += 1
