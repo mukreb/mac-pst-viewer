@@ -10,9 +10,9 @@ jobs:
   macos:
     runs-on: macos-26
     env:
-      # Signing and notarization run when the secrets are set (see "Notarized builds" in the README)
-      # and never for pull requests, which don't need a distributable app.
-      NOTARIZE: ${{ secrets.MACOS_CERTIFICATE_P12 != '' && github.event_name != 'pull_request' }}
+      # Signing and notarization run when all their secrets are set (see "Notarized builds" in the
+      # README) and never for pull requests, which don't need a distributable app.
+      NOTARIZE: ${{ secrets.MACOS_CERTIFICATE_P12 != '' && secrets.MACOS_CERTIFICATE_PASSWORD != '' && secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_APP_PASSWORD != '' && github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v4
       - name: Swift version

@@ -74,7 +74,7 @@ GitHub Actions does the same when these repository secrets are set (Settings →
 | `APPLE_TEAM_ID` | Your 10-character Team ID (developer.apple.com → Account → Membership) |
 | `APPLE_APP_PASSWORD` | An app-specific password for that Apple ID (account.apple.com → Sign-In and Security) |
 
-Without these secrets the workflow builds an ad-hoc signed app as before.
+Until all five secrets are set, the workflow builds an ad-hoc signed app as before.
 
 ## Settings
 
