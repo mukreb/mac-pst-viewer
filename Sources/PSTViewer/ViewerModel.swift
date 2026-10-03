@@ -481,7 +481,9 @@ final class ViewerModel: ObservableObject {
     @Published var exportProgress: (done: Int, total: Int, text: String)?
 
     /// Runs an export in the background; `work` returns descriptions of items that failed.
-    private func runExport(count: Int, text: String, _ work: @escaping (@escaping (Int) async -> Void) async -> [String]) {
+    /// `work` is `@Sendable`, so it runs off the main thread and the window stays responsive.
+    private func runExport(count: Int, text: String,
+                           _ work: @escaping @Sendable (@escaping @Sendable (Int) async -> Void) async -> [String]) {
         exportProgress = (0, max(count, 1), text)
         Task.detached(priority: .userInitiated) {
             let failures = await work { n in

@@ -17,28 +17,35 @@ swift build -c release --product PSTViewer ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
 BIN_DIR="$(swift build -c release --product PSTViewer ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)"
 
 echo "▸ App-bundel samenstellen…"
-rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN_DIR/PSTViewer" "$APP/Contents/MacOS/PSTViewer"
-cp Resources/Info.plist "$APP/Contents/Info.plist"
+# Assemble and sign in a temporary folder: inside iCloud Drive (or after Finder copies) files get
+# extended attributes that make `codesign` fail with "resource fork, Finder information … not allowed".
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+STAGE="$WORK/PST Viewer.app"
+mkdir -p "$STAGE/Contents/MacOS" "$STAGE/Contents/Resources"
+cp "$BIN_DIR/PSTViewer" "$STAGE/Contents/MacOS/PSTViewer"
+cp Resources/Info.plist "$STAGE/Contents/Info.plist"
 
 echo "▸ Icoon maken…"
-TMP="$(mktemp -d)"
-if swift scripts/make-icon.swift "$TMP/icon.png" 2>/dev/null; then
-  ICONSET="$TMP/AppIcon.iconset"
+if swift scripts/make-icon.swift "$WORK/icon.png" 2>/dev/null; then
+  ICONSET="$WORK/AppIcon.iconset"
   mkdir -p "$ICONSET"
   for s in 16 32 128 256 512; do
-    sips -z $s $s "$TMP/icon.png" --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
-    sips -z $((s * 2)) $((s * 2)) "$TMP/icon.png" --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
+    sips -z $s $s "$WORK/icon.png" --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
+    sips -z $((s * 2)) $((s * 2)) "$WORK/icon.png" --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
   done
-  iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
+  iconutil -c icns "$ICONSET" -o "$STAGE/Contents/Resources/AppIcon.icns"
 else
   echo "  (icoon overgeslagen)"
 fi
-rm -rf "$TMP"
 
 echo "▸ Ad-hoc ondertekenen…"
-codesign --force --deep --sign - "$APP"
+xattr -cr "$STAGE"
+codesign --force --deep --sign - "$STAGE"
+
+rm -rf "$APP"
+mkdir -p dist
+ditto "$STAGE" "$APP"
 
 echo "✓ Klaar: $APP"
 echo "  Starten:  open \"$APP\""
