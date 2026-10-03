@@ -126,6 +126,12 @@ struct RichTextView: NSViewRepresentable {
                 m.addAttribute(.foregroundColor, value: NSColor.textColor, range: r)
             }
         }
+        // Outlook's default 10pt RTF text is tiny on a Mac screen.
+        m.enumerateAttribute(.font, in: range) { value, r, _ in
+            if let f = value as? NSFont, f.pointSize < 13 {
+                m.addAttribute(.font, value: NSFontManager.shared.convert(f, toSize: f.pointSize * 1.3), range: r)
+            }
+        }
         m.enumerateAttribute(.backgroundColor, in: range) { value, r, _ in
             if let c = (value as? NSColor)?.usingColorSpace(.sRGB), c.redComponent > 0.95, c.greenComponent > 0.95, c.blueComponent > 0.95 {
                 m.removeAttribute(.backgroundColor, range: r)

@@ -2,6 +2,8 @@
 
 Een eenvoudige, snelle viewer voor Outlook-archieven (`.pst` en `.ost`) op de Mac — zonder Outlook, zonder conversie, alleen-lezen. Gemaakt voor oude archieven, maar werkt ook met nieuwe.
 
+![PST Viewer met een geopend archief](docs/screenshot-viewer.png)
+
 ## Mogelijkheden
 
 - **Alle PST-formaten**: ANSI (Outlook 97–2002, de oude 2 GB-bestanden), Unicode (Outlook 2003 en later) en OST (ook de Outlook 2013+ variant met 4K-pagina's en compressie).
@@ -17,6 +19,8 @@ Een eenvoudige, snelle viewer voor Outlook-archieven (`.pst` en `.ost`) op de Ma
 - **Kopteksten en alle MAPI-eigenschappen** bekijken (voor wie wil weten wat er precies in staat).
 - **Privacy**: externe afbeeldingen in HTML-mail worden standaard geblokkeerd; JavaScript staat altijd uit.
 - **Tekenset instelbaar** voor oude ANSI-berichten zonder tekensetaanduiding (standaard West-Europees/Windows-1252).
+
+![Agenda-item uit een oud ANSI-archief](docs/screenshot-ansi.png)
 
 ## Installeren
 

@@ -91,7 +91,7 @@ struct MessageListView: View {
                     .lineLimit(1)
                     .help(row.from)
             }
-            .width(min: 80, ideal: 130)
+            .width(min: 80, ideal: 120)
 
             TableColumn("Onderwerp", value: \.sortSubject) { row in
                 VStack(alignment: .leading, spacing: 0) {
@@ -106,14 +106,14 @@ struct MessageListView: View {
                 }
                 .help(row.subject)
             }
-            .width(min: 120, ideal: 210)
+            .width(min: 120, ideal: 185)
 
             TableColumn("Datum", value: \.sortDate) { row in
                 Text(Format.listDate(row.summary.date))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
-            .width(min: 70, ideal: 105)
+            .width(min: 70, ideal: 118)
 
             TableColumn("Grootte", value: \.size) { row in
                 Text(row.size > 0 ? ByteCountFormatter.string(fromByteCount: Int64(row.size), countStyle: .file) : "")
@@ -171,8 +171,7 @@ enum Format {
 
     static let shortDate: DateFormatter = {
         let f = DateFormatter()
-        f.dateStyle = .short
-        f.timeStyle = .short
+        f.setLocalizedDateFormatFromTemplate("ddMMyyyyHHmm")
         return f
     }()
 
