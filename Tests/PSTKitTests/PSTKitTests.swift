@@ -225,6 +225,20 @@ final class PSTKitTests: XCTestCase {
         XCTAssertFalse(EMLWriter.address(name: "A\r\nB", email: "a@b.c\r\nX: 1").contains("\n"))
     }
 
+    func testCharsetWithSpaces() {
+        let html = Array("<meta charset = \"utf-8\"><p>café</p>".utf8)
+        XCTAssertTrue(HTMLText.decode(html, codepage: 1252).contains("café"))
+    }
+
+    func testLongASCIIHeaderIsFolded() {
+        let subject = String(repeating: "word ", count: 300)
+        let header = EMLWriter.header("Subject", subject)
+        for line in header.components(separatedBy: "\r\n") { XCTAssertLessThanOrEqual(line.count, 998) }
+        XCTAssertTrue(header.contains("\r\n "))
+        let unbroken = EMLWriter.header("Subject", String(repeating: "x", count: 2000))
+        for line in unbroken.components(separatedBy: "\r\n") { XCTAssertLessThanOrEqual(line.count, 998) }
+    }
+
     func testSafeName() {
         XCTAssertEqual(EMLWriter.safeName(".."), "__")
         XCTAssertEqual(EMLWriter.safeName("."), "_")

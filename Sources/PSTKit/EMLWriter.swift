@@ -122,6 +122,26 @@ public enum EMLWriter {
             + "\r\n"
     }
 
+    /// Folds a long ASCII value at spaces (RFC 5322 §2.2.3) so lines stay short; a single word too
+    /// long to fold is sent as encoded words instead, keeping every line under the 998-character limit.
+    static func fold(_ s: String) -> String {
+        guard s.count > 70 else { return s }
+        let words = s.split(separator: " ", omittingEmptySubsequences: false)
+        if words.contains(where: { $0.count > 900 }) { return encodeWord(s, force: true) }
+        var lines: [String] = []
+        var line = ""
+        for w in words {
+            if !line.isEmpty, line.count + 1 + w.count > 70 {
+                lines.append(line)
+                line = String(w)
+            } else {
+                line = line.isEmpty && lines.isEmpty ? String(w) : (line.isEmpty ? String(w) : line + " " + w)
+            }
+        }
+        lines.append(line)
+        return lines.joined(separator: "\r\n ")
+    }
+
     static func header(_ name: String, _ value: String) -> String {
         "\(name): \(encodeWord(flat(value)))\r\n"
     }
@@ -182,8 +202,8 @@ public enum EMLWriter {
     }
 
     /// RFC 2047 encoded-word for non-ASCII header values.
-    static func encodeWord(_ s: String) -> String {
-        if s.unicodeScalars.allSatisfy({ $0.isASCII }) { return s }
+    static func encodeWord(_ s: String, force: Bool = false) -> String {
+        if !force && s.unicodeScalars.allSatisfy({ $0.isASCII }) { return fold(s) }
         // RFC 2047 §2: an encoded word may be at most 75 characters, so split the text into
         // chunks of at most 45 UTF-8 bytes (never inside a character) and fold the header.
         var words: [String] = []

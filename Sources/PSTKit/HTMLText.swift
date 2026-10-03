@@ -7,9 +7,11 @@ enum HTMLText {
             return String(decoding: bytes.dropFirst(3), as: UTF8.self)
         }
         let head = String(decoding: bytes.prefix(4096), as: UTF8.self).lowercased()
-        if let r = head.range(of: "charset=") {
-            let rest = head[r.upperBound...].trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
-            let name = String(rest.prefix { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" })
+        // `charset=utf-8`, `charset = "utf-8"`, `content="text/html; charset=windows-1252"`, …
+        if let r = head.range(of: #"charset\s*=\s*["']?\s*[a-z0-9_\-]+"#, options: .regularExpression) {
+            let match = head[r]
+            let name = String(match[match.index(after: match.firstIndex(of: "=")!)...]
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\"' \t\r\n")))
             if let cp = HTMLText.codepage(forCharset: name), let enc = PSTText.encoding(forCodepage: cp),
                let s = String(bytes: bytes, encoding: enc) {
                 return s
