@@ -378,12 +378,13 @@ final class ViewerModel: ObservableObject {
                 }
             }
             let final = results.sorted { $0.sortDate > $1.sortDate }
+            let skipped = unreadable
             await MainActor.run {
                 guard self.searchGeneration == generation else { return }
                 self.searchResults = final
                 self.isSearching = false
-                self.searchWarning = unreadable.isEmpty ? nil
-                    : "Onvolledig: \(unreadable.count) map(pen) konden niet worden gelezen (\(unreadable.prefix(3).joined(separator: ", ")))."
+                self.searchWarning = skipped.isEmpty ? nil
+                    : "Onvolledig: \(skipped.count) map(pen) konden niet worden gelezen (\(skipped.prefix(3).joined(separator: ", ")))."
             }
         }
     }
