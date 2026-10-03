@@ -334,16 +334,25 @@ final class ViewerModel: ObservableObject {
             try? await Task.sleep(nanoseconds: 250_000_000)
             if Task.isCancelled { return }
 
+            var unreadable: [String] = []
+            var unreadableMessages = 0
+
             func matches(_ row: MessageRow, file: PSTFile) -> Bool {
                 let hay = (row.summary.subject + " " + row.summary.from + " " + row.summary.to).lowercased()
                 if terms.allSatisfy({ hay.contains($0) }) { return true }
-                guard bodies, let m = try? file.message(nid: row.ref.nid) else { return false }
+                guard bodies else { return false }
+                // A message whose text cannot be read might have matched: count it so the
+                // result is flagged as incomplete instead of silently treated as a miss.
+                guard let m = try? file.message(nid: row.ref.nid) else {
+                    unreadableMessages += 1
+                    return false
+                }
+                if m.bodyError != nil { unreadableMessages += 1 }
                 let full = (hay + " " + m.plainBody + " " + m.attachments.map(\.filename).joined(separator: " ")).lowercased()
                 return terms.allSatisfy { full.contains($0) }
             }
 
             var results: [MessageRow] = []
-            var unreadable: [String] = []
             switch scope {
             case .folder:
                 guard let first = folderRows.first, let s = stores.first(where: { $0.id == first.ref.store }) else { break }
@@ -378,13 +387,19 @@ final class ViewerModel: ObservableObject {
                 }
             }
             let final = results.sorted { $0.sortDate > $1.sortDate }
-            let skipped = unreadable
+            var problems: [String] = []
+            if !unreadable.isEmpty {
+                problems.append("\(unreadable.count) map(pen) konden niet worden gelezen (\(unreadable.prefix(3).joined(separator: ", ")))")
+            }
+            if unreadableMessages > 0 {
+                problems.append("van \(unreadableMessages) bericht(en) kon de tekst niet worden doorzocht")
+            }
+            let warning = problems.isEmpty ? nil : "Onvolledig: " + problems.joined(separator: "; ") + "."
             await MainActor.run {
                 guard self.searchGeneration == generation else { return }
                 self.searchResults = final
                 self.isSearching = false
-                self.searchWarning = skipped.isEmpty ? nil
-                    : "Onvolledig: \(skipped.count) map(pen) konden niet worden gelezen (\(skipped.prefix(3).joined(separator: ", ")))."
+                self.searchWarning = warning
             }
         }
     }

@@ -11,7 +11,9 @@ enum Inflate {
         let hasHeader = (cmf & 0x0F) == 8 && (UInt16(cmf) << 8 | UInt16(flg)) % 31 == 0
         guard let (out, end) = decode(input, start: hasHeader ? 2 : 0, expectedSize: expectedSize) else { return nil }
         // zlib streams end with an Adler-32 of the output: reject data that decodes but is corrupt.
-        if hasHeader, end + 4 <= input.count {
+        if hasHeader {
+            // A wrapper without its full checksum is truncated: never accept it unverified.
+            guard end + 4 <= input.count else { return nil }
             let stored = UInt32(input[end]) << 24 | UInt32(input[end + 1]) << 16 | UInt32(input[end + 2]) << 8 | UInt32(input[end + 3])
             guard stored == adler32(out) else { return nil }
         }
