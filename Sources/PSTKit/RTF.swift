@@ -93,6 +93,7 @@ public enum RTF {
         var state = State()
         var skipChars = 0
         var groupJustOpened = false
+        var highSurrogate: UInt32?
 
         init(_ src: [UInt8], mode: Mode) {
             self.src = src
@@ -223,7 +224,16 @@ public enum RTF {
             case "u":
                 if var v = param {
                     if v < 0 { v += 65536 }
-                    if let scalar = Unicode.Scalar(UInt32(v)) { emitString(String(Character(scalar))) }
+                    if (0xD800...0xDBFF).contains(v) {
+                        highSurrogate = UInt32(v) // wait for the low half of a non-BMP character
+                    } else if (0xDC00...0xDFFF).contains(v), let high = highSurrogate {
+                        let combined = 0x10000 + ((high - 0xD800) << 10) + (UInt32(v) - 0xDC00)
+                        if let scalar = Unicode.Scalar(combined) { emitString(String(Character(scalar))) }
+                        highSurrogate = nil
+                    } else if let scalar = Unicode.Scalar(UInt32(v)) {
+                        highSurrogate = nil
+                        emitString(String(Character(scalar)))
+                    }
                     skipChars = state.uc
                 }
             case "htmltag", "mhtmltag":

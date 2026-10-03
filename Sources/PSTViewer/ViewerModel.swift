@@ -145,6 +145,8 @@ final class ViewerModel: ObservableObject {
 
     private var folderRows: [MessageRow] = []
     private var searchTask: Task<Void, Never>?
+    /// Incremented on every new search so results of superseded searches are ignored.
+    private var searchGeneration = 0
     private var loadTask: Task<Void, Never>?
 
     init() {
@@ -279,6 +281,8 @@ final class ViewerModel: ObservableObject {
 
     private func scheduleSearch() {
         searchTask?.cancel()
+        searchGeneration += 1
+        let generation = searchGeneration
         let query = searchText.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else {
             searchResults = nil
@@ -322,12 +326,16 @@ final class ViewerModel: ObservableObject {
                             if matches(row, file: s.file) { results.append(row) }
                         }
                         let partial = results
-                        await MainActor.run { self.searchResults = partial.sorted { $0.sortDate > $1.sortDate } }
+                        await MainActor.run {
+                            guard self.searchGeneration == generation else { return }
+                            self.searchResults = partial.sorted { $0.sortDate > $1.sortDate }
+                        }
                     }
                 }
             }
             let final = results.sorted { $0.sortDate > $1.sortDate }
             await MainActor.run {
+                guard self.searchGeneration == generation else { return }
                 self.searchResults = final
                 self.isSearching = false
             }

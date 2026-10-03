@@ -167,6 +167,19 @@ final class PSTKitTests: XCTestCase {
         XCTAssertEqual(String(decoding: out, as: UTF8.self), "hello hello hello hello")
     }
 
+    func testAddressEncoding() {
+        XCTAssertEqual(EMLWriter.address(name: "Jörn Kottmann", email: "kottmann@gmail.com"),
+                       "=?utf-8?B?SsO2cm4gS290dG1hbm4=?= <kottmann@gmail.com>")
+        XCTAssertEqual(EMLWriter.address(name: "Allison, Timothy B.", email: "Allison, Timothy B. <t@mitre.org>"),
+                       "\"Allison, Timothy B.\" <t@mitre.org>")
+        XCTAssertEqual(EMLWriter.address(name: "x@y.z", email: "x@y.z"), "x@y.z")
+    }
+
+    func testRTFSurrogatePairs() {
+        let rtf = Array("{\\rtf1\\ansi smile \\u-10179?\\u-8704? done}".utf8)
+        XCTAssertTrue(RTF.plainText(rtf).contains("smile 😀 done"))
+    }
+
     func testSafeName() {
         XCTAssertEqual(EMLWriter.safeName(".."), "__")
         XCTAssertEqual(EMLWriter.safeName("."), "_")

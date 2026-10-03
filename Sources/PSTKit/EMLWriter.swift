@@ -7,10 +7,15 @@ public enum EMLWriter {
         let boundaryMixed = "----=_PSTViewer_mixed_\(m.nid)"
         let boundaryAlt = "----=_PSTViewer_alt_\(m.nid)"
 
-        out += header("From", m.from)
-        if !m.to.isEmpty { out += header("To", m.to) }
-        if !m.cc.isEmpty { out += header("Cc", m.cc) }
-        if !m.bcc.isEmpty { out += header("Bcc", m.bcc) }
+        out += "From: \(address(name: m.fromName, email: m.fromEmail))\r\n"
+        for (name, kind, display) in [("To", Recipient.Kind.to, m.displayTo), ("Cc", .cc, m.displayCc), ("Bcc", .bcc, m.displayBcc)] {
+            let list = m.recipients(kind)
+            if !list.isEmpty {
+                out += "\(name): " + list.map { address(name: $0.name, email: $0.email) }.joined(separator: ",\r\n ") + "\r\n"
+            } else if !display.isEmpty {
+                out += header(name, display)
+            }
+        }
         out += header("Subject", m.subject)
         if let d = m.sentDate ?? m.date { out += "Date: \(rfc2822(d))\r\n" }
         if !m.messageID.isEmpty { out += "Message-ID: \(m.messageID)\r\n" }
@@ -98,6 +103,27 @@ public enum EMLWriter {
 
     static func header(_ name: String, _ value: String) -> String {
         "\(name): \(encodeWord(value.replacingOccurrences(of: "\r", with: " ").replacingOccurrences(of: "\n", with: " ")))\r\n"
+    }
+
+    /// Formats a mailbox, encoding only the display name (RFC 5322 / 2047).
+    static func address(name: String, email rawEmail: String) -> String {
+        var email = rawEmail.trimmingCharacters(in: .whitespaces)
+        // Header-derived values look like `Name <user@host>`.
+        if let lt = email.lastIndex(of: "<"), let gt = email.lastIndex(of: ">"), lt < gt {
+            email = String(email[email.index(after: lt)..<gt])
+        }
+        let cleanName = name.replacingOccurrences(of: "\r", with: " ").replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: CharacterSet(charactersIn: " '\""))
+        guard email.contains("@") else { return encodeWord(cleanName.isEmpty ? email : cleanName) }
+        if cleanName.isEmpty || cleanName == email { return email }
+        let displayName: String
+        if cleanName.unicodeScalars.allSatisfy({ $0.isASCII }) {
+            let escaped = cleanName.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+            displayName = "\"\(escaped)\""
+        } else {
+            displayName = encodeWord(cleanName)
+        }
+        return "\(displayName) <\(email)>"
     }
 
     /// RFC 2047 encoded-word for non-ASCII header values.
