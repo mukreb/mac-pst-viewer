@@ -169,6 +169,8 @@ final class ViewerModel: ObservableObject {
         didSet { scheduleSearch() }
     }
     @Published var searchResults: [MessageRow]?
+    /// The scope `searchResults` was produced for; lags `searchScope` until a new search lands.
+    @Published var searchResultsScope: SearchScope = .folder
     @Published var isSearching = false
     /// Set when an all-folder search had to skip folders it could not read.
     @Published var searchWarning: String?
@@ -416,6 +418,7 @@ final class ViewerModel: ObservableObject {
                         await MainActor.run {
                             guard self.searchGeneration == generation else { return }
                             self.searchResults = partial.sorted { $0.sortDate > $1.sortDate }
+                            self.searchResultsScope = scope
                         }
                     }
                 }
@@ -435,6 +438,7 @@ final class ViewerModel: ObservableObject {
             await MainActor.run {
                 guard self.searchGeneration == generation else { return }
                 self.searchResults = final
+                self.searchResultsScope = scope
                 self.isSearching = false
                 self.searchWarning = warning
             }

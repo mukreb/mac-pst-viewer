@@ -149,6 +149,12 @@ final class MboxTests: XCTestCase {
     func testDates() {
         XCTAssertEqual(MIME.parseDate("Thu, 4 Nov 1999 10:14:51 +0100"), Date(timeIntervalSince1970: 941_706_891))
         XCTAssertEqual(MIME.parseDate("Thu, 04 Nov 1999 09:14:51 GMT"), Date(timeIntervalSince1970: 941_706_891))
+        XCTAssertEqual(MIME.parseDate("Thu, 4 Nov 1999 10:14:51 +01:00"), Date(timeIntervalSince1970: 941_706_891))
+        XCTAssertEqual(MIME.parseDate("Thu, 4 Nov 1999 10:14:51 MET"), Date(timeIntervalSince1970: 941_706_891))
+        // Summer time: MET DST is two hours ahead of UTC; a numeric offset wins over the name.
+        XCTAssertEqual(MIME.parseDate("Thu, 4 Nov 1999 11:14:51 MET DST"), Date(timeIntervalSince1970: 941_706_891))
+        XCTAssertEqual(MIME.parseDate("Thu, 4 Nov 1999 11:14:51 +0200 (MET DST)"), Date(timeIntervalSince1970: 941_706_891))
+        XCTAssertEqual(MIME.parseDate("Thu, 4 Nov 1999 10:14:51 +0100 (EST)"), Date(timeIntervalSince1970: 941_706_891))
         XCTAssertNil(MIME.parseDate("gisteren"))
     }
 
