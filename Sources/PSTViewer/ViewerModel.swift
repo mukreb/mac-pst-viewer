@@ -381,9 +381,9 @@ final class ViewerModel: ObservableObject {
                     unreadableMessages += 1
                     return false
                 }
-                if m.bodyError != nil { unreadableMessages += 1 }
                 // The list shows names only for PST mail; the full message also has the addresses.
                 let addresses = m.from + " " + m.to + " " + m.cc + " " + m.bcc
+                if m.bodyError != nil || m.recipientError != nil { unreadableMessages += 1 }
                 let full = (hay + " " + addresses + " " + m.plainBody + " " + m.attachments.map(\.filename).joined(separator: " ")).lowercased()
                 return terms.allSatisfy { full.contains($0) }
             }
@@ -430,8 +430,8 @@ final class ViewerModel: ObservableObject {
                                    "\(unreadable.count) map(pen) konden niet worden gelezen (\(names))"))
             }
             if unreadableMessages > 0 {
-                problems.append(tr("the text of \(unreadableMessages) message(s) couldn't be searched",
-                                   "van \(unreadableMessages) bericht(en) kon de tekst niet worden doorzocht"))
+                problems.append(tr("\(unreadableMessages) message(s) couldn't be searched completely",
+                                   "\(unreadableMessages) bericht(en) konden niet volledig worden doorzocht"))
             }
             let warning = problems.isEmpty ? nil : tr("Incomplete: ", "Onvolledig: ") + problems.joined(separator: "; ") + "."
             await MainActor.run {
