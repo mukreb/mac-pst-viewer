@@ -20,11 +20,15 @@ jobs:
       - name: Smoke test pstdump
         run: swift run -c release pstdump Tests/PSTKitTests/Fixtures/tika-ansi-high.pst --messages
       - name: Screenshot
+        timeout-minutes: 3
+        continue-on-error: true
         run: |
-          "dist/PST Viewer.app/Contents/MacOS/PSTViewer" "$PWD/Tests/PSTKitTests/Fixtures/tika-testPST.pst" --demo &
+          "dist/PST Viewer.app/Contents/MacOS/PSTViewer" "$PWD/Tests/PSTKitTests/Fixtures/tika-testPST.pst" --demo > /tmp/app.log 2>&1 < /dev/null &
+          APP_PID=$!
           sleep 15
-          screencapture -x dist/screenshot.png || true
-          kill %1 || true
+          screencapture -x dist/screenshot.png < /dev/null || true
+          kill $APP_PID || true
+          cat /tmp/app.log
       - name: Zip app
         run: cd dist && ditto -c -k --keepParent "PST Viewer.app" PST-Viewer.zip
       - uses: actions/upload-artifact@v4
