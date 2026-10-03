@@ -69,21 +69,29 @@ public enum MboxExport {
         }
     }
 
-    /// True when `output` is one of the `sources` (also through a symbolic or hard link) or lies
-    /// inside a source folder, so writing it would overwrite or change an archive that is being read.
+    /// True when `output` is one of the `sources` or lies inside a source folder, so writing it
+    /// would overwrite or change an archive that is being read. Besides the paths it compares the
+    /// identity of the output and each of its folders with the sources, which also catches hard
+    /// links and other spellings on case-insensitive volumes.
     public static func overlaps(_ output: URL, sources: [URL]) -> Bool {
         let out = output.standardizedFileURL.resolvingSymlinksInPath().path
-        let outID = fileIdentity(out)
-        return sources.contains { src in
-            let s = src.standardizedFileURL.resolvingSymlinksInPath().path
-            if out == s || out.hasPrefix(s.hasSuffix("/") ? s : s + "/") { return true }
-            return outID != nil && outID == fileIdentity(s)
+        let paths = sources.map { $0.standardizedFileURL.resolvingSymlinksInPath().path }
+        if paths.contains(where: { out == $0 || out.hasPrefix($0.hasSuffix("/") ? $0 : $0 + "/") }) { return true }
+        let ids = paths.compactMap(fileIdentity)
+        var path = out
+        while true {
+            if let id = fileIdentity(path), ids.contains(id) { return true }
+            let parent = (path as NSString).deletingLastPathComponent
+            if parent.isEmpty || parent == path { return false }
+            path = parent
         }
     }
 
-    /// Device and inode of an existing file, so two names for the same file compare equal.
+    /// Device and inode of an existing file or folder (following symbolic links), so two names
+    /// for the same item compare equal.
     static func fileIdentity(_ path: String) -> [Int]? {
-        guard let a = try? FileManager.default.attributesOfItem(atPath: path),
+        let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        guard let a = try? FileManager.default.attributesOfItem(atPath: resolved),
               let dev = (a[.systemNumber] as? NSNumber)?.intValue,
               let ino = (a[.systemFileNumber] as? NSNumber)?.intValue else { return nil }
         return [dev, ino]

@@ -113,4 +113,19 @@ final class MailExportTests: XCTestCase {
         XCTAssertThrowsError(try MboxExport.export(stores: [source], filter: MailFilter(), to: out, append: true))
         XCTAssertEqual(try Data(contentsOf: out), original)
     }
+
+    func testOutputInsideSourceFolderByAnotherNameIsRefused() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("export-\(UUID().uuidString)")
+        let mail = dir.appendingPathComponent("Mail")
+        try FileManager.default.createDirectory(at: mail, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+        // A second name for the source folder whose path doesn't share the source's prefix.
+        let other = dir.appendingPathComponent("other")
+        try FileManager.default.createDirectory(at: other, withIntermediateDirectories: true)
+        let alias = other.appendingPathComponent("mail")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: mail)
+        XCTAssertTrue(MboxExport.overlaps(alias.appendingPathComponent("Inbox"), sources: [mail]))
+        XCTAssertTrue(MboxExport.overlaps(mail.appendingPathComponent("new.mbox"), sources: [alias]))
+        XCTAssertFalse(MboxExport.overlaps(other.appendingPathComponent("new.mbox"), sources: [mail]))
+    }
 }
