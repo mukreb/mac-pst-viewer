@@ -121,15 +121,18 @@ public final class PSTFile: @unchecked Sendable {
 
     private func loadFolder(nid: UInt32, depth: Int, visited: inout Set<UInt32>) throws -> Folder {
         visited.insert(nid)
-        let pc = try propertyContext(nid: nid)
+        // A folder whose own properties are damaged is still listed (with a placeholder name),
+        // so its messages and subfolders stay reachable.
+        let pc = try? propertyContext(nid: nid)
         let cp = PSTText.defaultCodepage
-        let name = pc.value(PropID.displayName)?.stringValue(codepage: cp) ?? ""
+        let name = pc == nil ? "⚠︎ Onleesbare map (0x\(String(nid, radix: 16)))"
+            : pc?.value(PropID.displayName)?.stringValue(codepage: cp) ?? ""
         var folder = Folder(
             nid: nid,
             name: name,
-            contentCount: Int(pc.value(PropID.contentCount)?.intValue ?? 0),
-            unreadCount: Int(pc.value(PropID.contentUnread)?.intValue ?? 0),
-            containerClass: pc.value(PropID.containerClass)?.stringValue(codepage: cp) ?? "",
+            contentCount: Int(pc?.value(PropID.contentCount)?.intValue ?? 0),
+            unreadCount: Int(pc?.value(PropID.contentUnread)?.intValue ?? 0),
+            containerClass: pc?.value(PropID.containerClass)?.stringValue(codepage: cp) ?? "",
             children: []
         )
         guard depth < 64 else { return folder }

@@ -134,8 +134,14 @@ public struct PropertyContext {
     var propertyIDs: [UInt16] { entries.keys.sorted() }
 
     func value(_ id: UInt16) -> PropertyValue? {
+        try? decodedValue(id)
+    }
+
+    /// Like `value(_:)`, but a property that exists and cannot be decoded throws instead of
+    /// looking absent (used where silently losing data would be wrong, e.g. exports).
+    func decodedValue(_ id: UInt16) throws -> PropertyValue? {
         guard let e = entries[id] else { return nil }
-        return try? PropertyValue.decode(type: e.type, inline: e.raw, heap: heap)
+        return try PropertyValue.decode(type: e.type, inline: e.raw, heap: heap)
     }
 
     func all() -> [Property] {

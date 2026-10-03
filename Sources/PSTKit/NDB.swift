@@ -178,9 +178,10 @@ final class NDB: @unchecked Sendable {
             let footer = data.bytes(at: Int(entry.ib) + total - 24, count: 24)
             let rawSize = Int(footer.u16(18))
             if rawSize > size, footer.count == 24 {
-                if let inflated = Inflate.zlib(bytes, expectedSize: rawSize) {
-                    bytes = inflated
+                guard let inflated = Inflate.zlib(bytes, expectedSize: rawSize), inflated.count == rawSize else {
+                    throw PSTError.corrupt(String(format: "blok 0x%llx kan niet worden uitgepakt", bid))
                 }
+                bytes = inflated
             }
         }
         if !isInternal {

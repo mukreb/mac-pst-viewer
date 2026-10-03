@@ -10,7 +10,7 @@ public enum EMLWriter {
     /// to their own message cannot recurse forever.
     static func eml(for m: Message, depth: Int) throws -> Data {
         guard depth < 16 else { throw PSTError.corrupt("te diep geneste bijgevoegde berichten") }
-        if let problem = m.recipientError { throw PSTError.corrupt("\(m.subject): \(problem)") }
+        if let problem = m.recipientError ?? m.bodyError { throw PSTError.corrupt("\(m.subject): \(problem)") }
         var out = ""
         let boundaryMixed = "----=_PSTViewer_mixed_\(m.nid)"
         let boundaryAlt = "----=_PSTViewer_alt_\(m.nid)"

@@ -73,6 +73,14 @@ public final class Message: @unchecked Sendable {
         return pc.value(id)
     }
 
+    /// Set when a body property (text, HTML or RTF) exists but cannot be read.
+    public var bodyError: String? {
+        for (id, label) in [(PropID.body, "tekst"), (PropID.html, "HTML"), (PropID.rtfCompressed, "RTF")] {
+            do { _ = try pc.decodedValue(id) } catch { return "berichttekst (\(label)) kan niet worden gelezen (\(error))" }
+        }
+        return nil
+    }
+
     public var subject: String { PSTText.cleanSubject(string(PropID.subject)) }
     public var messageClass: String { string(PropID.messageClass) }
     public var kind: ItemKind { ItemKind(messageClass: messageClass) }
