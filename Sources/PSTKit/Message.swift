@@ -59,7 +59,7 @@ public final class Message: @unchecked Sendable {
         pc = try PropertyContext(node)
         codepage = Int(pc.value(PropID.messageCodepage)?.intValue
             ?? pc.value(PropID.internetCodepage)?.intValue
-            ?? Int64(Text.defaultCodepage))
+            ?? Int64(PSTText.defaultCodepage))
     }
 
     func string(_ id: UInt16) -> String {
@@ -73,7 +73,7 @@ public final class Message: @unchecked Sendable {
         return pc.value(id)
     }
 
-    public var subject: String { Text.cleanSubject(string(PropID.subject)) }
+    public var subject: String { PSTText.cleanSubject(string(PropID.subject)) }
     public var messageClass: String { string(PropID.messageClass) }
     public var kind: ItemKind { ItemKind(messageClass: messageClass) }
 
@@ -234,7 +234,7 @@ public final class Message: @unchecked Sendable {
             let cp = Int(pc.value(PropID.internetCodepage)?.intValue ?? 0)
             return HTMLText.decode(b, codepage: cp == 0 ? codepage : cp)
         case .string(let s)?: return s.isEmpty ? nil : s
-        case .string8(let b)?: return Text.decode(b, codepage: codepage)
+        case .string8(let b)?: return PSTText.decode(b, codepage: codepage)
         default: return nil
         }
     }
@@ -245,14 +245,14 @@ public final class Message: @unchecked Sendable {
     }()
 
     /// The richest available body representation.
-    public var body: MessageBody {
+    public lazy var body: MessageBody = {
         if let h = htmlBody { return .html(h) }
         if let rtf = rtfBody {
             if RTF.isEncapsulatedHTML(rtf) { return .html(RTF.extractHTML(rtf)) }
             if !RTF.isEncapsulatedText(rtf) { return .rtf(Data(rtf)) }
         }
         return .text(plainBody)
-    }
+    }()
 
     // MARK: Properties
 

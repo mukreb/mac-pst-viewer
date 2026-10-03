@@ -37,7 +37,7 @@ public final class PSTFile: @unchecked Sendable {
         let data = try Data(contentsOf: url, options: [.alwaysMapped])
         ndb = try NDB(data: data)
         if let store = try? propertyContext(nid: 0x21) {
-            displayName = store.value(PropID.displayName)?.stringValue(codepage: Text.defaultCodepage) ?? ""
+            displayName = store.value(PropID.displayName)?.stringValue(codepage: PSTText.defaultCodepage) ?? ""
         }
         if displayName.isEmpty { displayName = url.deletingPathExtension().lastPathComponent }
         loadNameMap()
@@ -84,13 +84,13 @@ public final class PSTFile: @unchecked Sendable {
             default:
                 let go = (guidIndex - 3) * 16
                 guard go >= 0, go + 16 <= guids.count else { continue }
-                guid = Text.guidString(Array(guids[go..<(go + 16)]))
+                guid = PSTText.guidString(Array(guids[go..<(go + 16)]))
             }
             let localID = 0x8000 &+ propIndex
             if isString {
                 let so = Int(idOrOffset)
                 let len = Int(strings.u32(so))
-                let name = Text.utf16(strings.slice(so + 4, len))
+                let name = PSTText.utf16(strings.slice(so + 4, len))
                 namedByName[guid, default: [:]][name] = localID
                 namedReverse[localID] = name
             } else {
@@ -122,7 +122,7 @@ public final class PSTFile: @unchecked Sendable {
     private func loadFolder(nid: UInt32, depth: Int, visited: inout Set<UInt32>) throws -> Folder {
         visited.insert(nid)
         let pc = try propertyContext(nid: nid)
-        let cp = Text.defaultCodepage
+        let cp = PSTText.defaultCodepage
         let name = pc.value(PropID.displayName)?.stringValue(codepage: cp) ?? ""
         var folder = Folder(
             nid: nid,
@@ -164,12 +164,12 @@ public final class PSTFile: @unchecked Sendable {
             for row in tc.rows() {
                 let nid = row.rowID
                 guard ndb.nodes[nid] != nil, seen.insert(nid).inserted else { continue }
-                let cp = Int(row[PropID.messageCodepage]?.intValue ?? row[PropID.internetCodepage]?.intValue ?? Int64(Text.defaultCodepage))
+                let cp = Int(row[PropID.messageCodepage]?.intValue ?? row[PropID.internetCodepage]?.intValue ?? Int64(PSTText.defaultCodepage))
                 func str(_ id: UInt16) -> String { row[id]?.stringValue(codepage: cp) ?? "" }
                 let flags = Int(row[PropID.messageFlags]?.intValue ?? 0)
                 var summary = MessageSummary(
                     nid: nid,
-                    subject: Text.cleanSubject(str(PropID.subject)),
+                    subject: PSTText.cleanSubject(str(PropID.subject)),
                     from: str(PropID.sentRepresentingName),
                     to: str(PropID.displayTo),
                     date: row[PropID.messageDeliveryTime]?.dateValue ?? row[PropID.clientSubmitTime]?.dateValue

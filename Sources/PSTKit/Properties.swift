@@ -74,7 +74,7 @@ public enum PropertyValue: CustomStringConvertible {
             return decodeFixed(type: type, bytes: bytes) ?? .binary(bytes)
         }
         switch type {
-        case PT_UNICODE: return .string(Text.utf16(bytes))
+        case PT_UNICODE: return .string(PSTText.utf16(bytes))
         case PT_STRING8: return .string8(bytes)
         case PT_BINARY: return .binary(bytes)
         case PT_CLSID: return .guid(bytes)
@@ -120,7 +120,7 @@ public enum PropertyValue: CustomStringConvertible {
                 guard s <= e, e <= bytes.count else { continue }
                 let chunk = Array(bytes[s..<e])
                 switch type {
-                case PT_UNICODE: items.append(.string(Text.utf16(chunk)))
+                case PT_UNICODE: items.append(.string(PSTText.utf16(chunk)))
                 case PT_STRING8: items.append(.string8(chunk))
                 default: items.append(.binary(chunk))
                 }
@@ -156,7 +156,7 @@ public enum PropertyValue: CustomStringConvertible {
     public func stringValue(codepage: Int) -> String? {
         switch self {
         case .string(let s): return s
-        case .string8(let b): return Text.decode(b, codepage: codepage)
+        case .string8(let b): return PSTText.decode(b, codepage: codepage)
         case .int(let v): return String(v)
         case .multi(let items): return items.compactMap { $0.stringValue(codepage: codepage) }.joined(separator: "; ")
         default: return nil
@@ -170,11 +170,11 @@ public enum PropertyValue: CustomStringConvertible {
         case .bool(let b): return b ? "true" : "false"
         case .date(let d): return ISO8601DateFormatter().string(from: d)
         case .string(let s): return s
-        case .string8(let b): return Text.decode(b, codepage: 1252)
+        case .string8(let b): return PSTText.decode(b, codepage: 1252)
         case .binary(let b):
             let hex = b.prefix(64).map { String(format: "%02X", $0) }.joined(separator: " ")
             return b.count > 64 ? "\(hex) … (\(b.count) bytes)" : hex
-        case .guid(let b): return Text.guidString(b)
+        case .guid(let b): return PSTText.guidString(b)
         case .object(let nid, let size): return "object nid=0x\(String(nid, radix: 16)) size=\(size)"
         case .multi(let items): return "[" + items.map(\.description).joined(separator: ", ") + "]"
         case .error(let e): return String(format: "error 0x%08X", e)

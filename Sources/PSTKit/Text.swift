@@ -3,7 +3,7 @@ import Foundation
 import CoreFoundation
 #endif
 
-public enum Text {
+public enum PSTText {
     /// Code page used for 8-bit strings when the message does not specify one.
     /// Old Western-European Outlook installations use Windows-1252.
     public static var defaultCodepage = 1252

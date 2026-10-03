@@ -101,7 +101,7 @@ public enum RTF {
 
         func flush() {
             if !pending.isEmpty {
-                out += Text.decode(pending, codepage: codepage)
+                out += PSTText.decode(pending, codepage: codepage)
                 pending.removeAll(keepingCapacity: true)
             }
         }

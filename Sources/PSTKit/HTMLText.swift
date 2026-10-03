@@ -10,12 +10,12 @@ enum HTMLText {
         if let r = head.range(of: "charset=") {
             let rest = head[r.upperBound...].trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
             let name = String(rest.prefix { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" })
-            if let cp = HTMLText.codepage(forCharset: name), let enc = Text.encoding(forCodepage: cp),
+            if let cp = HTMLText.codepage(forCharset: name), let enc = PSTText.encoding(forCodepage: cp),
                let s = String(bytes: bytes, encoding: enc) {
                 return s
             }
         }
-        return Text.decode(bytes, codepage: codepage)
+        return PSTText.decode(bytes, codepage: codepage)
     }
 
     static func codepage(forCharset name: String) -> Int? {

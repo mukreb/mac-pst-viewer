@@ -1,0 +1,34 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Test PSTKit
+        run: swift test
+      - name: Build app bundle (universal)
+        run: ./scripts/build-app.sh universal
+      - name: Smoke test pstdump
+        run: swift run -c release pstdump Tests/PSTKitTests/Fixtures/tika-ansi-high.pst --messages
+      - name: Zip app
+        run: cd dist && ditto -c -k --keepParent "PST Viewer.app" PST-Viewer.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PST-Viewer-macOS
+          path: dist/PST-Viewer.zip
+
+  linux:
+    runs-on: ubuntu-latest
+    container: swift:6.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test PSTKit
+        run: swift test

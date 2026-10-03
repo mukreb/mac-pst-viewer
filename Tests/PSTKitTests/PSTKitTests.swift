@@ -168,7 +168,7 @@ final class PSTKitTests: XCTestCase {
     }
 
     func testCodepages() {
-        XCTAssertEqual(Text.decode([0x63, 0x61, 0x66, 0xE9], codepage: 1252), "café")
-        XCTAssertEqual(Text.decode([0x80], codepage: 1252), "€")
+        XCTAssertEqual(PSTText.decode([0x63, 0x61, 0x66, 0xE9], codepage: 1252), "café")
+        XCTAssertEqual(PSTText.decode([0x80], codepage: 1252), "€")
     }
 }
