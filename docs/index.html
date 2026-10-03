@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PST Viewer voor Mac</title>
+<meta name="description" content="Open oude Outlook-archieven (.pst en .ost) en Netscape/Thunderbird-mail op je Mac. Gratis, zonder Outlook, en je bestanden blijven onaangeroerd.">
+<meta property="og:title" content="PST Viewer voor Mac">
+<meta property="og:description" content="Open oude Outlook-archieven (.pst en .ost) op je Mac — gratis, zonder Outlook.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="screenshot-viewer.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a84ff'/%3E%3Cpath d='M14 34l6-16h24l6 16v10a4 4 0 0 1-4 4H18a4 4 0 0 1-4-4z' fill='none' stroke='white' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M14 34h11a7 7 0 0 0 14 0h11' fill='none' stroke='white' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-alt: #f5f5f7;
+    --text: #1d1d1f;
+    --muted: #6e6e73;
+    --line: #d2d2d7;
+    --accent: #0071e3;
+    --accent-hover: #0077ed;
+    --card: #ffffff;
+    --shadow: 0 20px 50px rgba(0, 0, 0, .15), 0 2px 8px rgba(0, 0, 0, .08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --bg-alt: #161617;
+      --text: #f5f5f7;
+      --muted: #a1a1a6;
+      --line: #3a3a3c;
+      --accent: #2997ff;
+      --accent-hover: #47a6ff;
+      --card: #1d1d1f;
+      --shadow: 0 20px 50px rgba(0, 0, 0, .6), 0 2px 8px rgba(0, 0, 0, .4);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 17px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Language switch: show only the texts for the chosen language. */
+  html[lang="nl"] [lang="en"]:not(html), html[lang="en"] [lang="nl"]:not(html) { display: none !important; }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  section { padding: 72px 0; }
+  section.alt { background: var(--bg-alt); }
+  h1, h2, h3 { line-height: 1.15; letter-spacing: -.02em; margin: 0 0 .5em; }
+  h1 { font-size: clamp(2.2rem, 6vw, 3.6rem); font-weight: 700; }
+  h2 { font-size: clamp(1.7rem, 4vw, 2.4rem); font-weight: 700; text-align: center; }
+  h3 { font-size: 1.15rem; font-weight: 600; letter-spacing: -.01em; }
+  p { margin: 0 0 1em; }
+  .lead { font-size: clamp(1.1rem, 2.4vw, 1.4rem); color: var(--muted); max-width: 680px; margin: 0 auto 1.6em; }
+  .center { text-align: center; }
+  .sub { color: var(--muted); text-align: center; max-width: 640px; margin: 0 auto 48px; }
+
+  /* Header */
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 80%, transparent);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--line);
+  }
+  header .wrap { display: flex; align-items: center; justify-content: space-between; height: 52px; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text); }
+  .brand:hover { text-decoration: none; }
+  .brand svg { width: 26px; height: 26px; flex: none; }
+  nav { display: flex; align-items: center; gap: 20px; font-size: 14px; }
+  nav a.link { color: var(--muted); }
+  nav a.link:hover { color: var(--text); text-decoration: none; }
+  .lang { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .lang button {
+    font: inherit; font-size: 13px; padding: 3px 10px; border: 0; background: none; color: var(--muted); cursor: pointer;
+  }
+  .lang button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+  @media (max-width: 640px) { nav a.link { display: none; } }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--accent); color: #fff; font-weight: 500;
+    padding: 12px 24px; border-radius: 999px; font-size: 17px;
+  }
+  .btn:hover { background: var(--accent-hover); text-decoration: none; }
+  .btn svg { width: 18px; height: 18px; }
+  .btn-note { display: block; margin-top: 12px; font-size: 14px; color: var(--muted); }
+  .actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 24px; }
+
+  /* Hero */
+  .hero { padding: 80px 0 64px; text-align: center; }
+  .hero-shot { margin: 56px auto 0; max-width: 984px; }
+  .shot { display: block; width: 100%; height: auto; border-radius: 12px; box-shadow: var(--shadow); border: 1px solid var(--line); }
+
+  /* Cards */
+  .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .card { background: var(--card); border-radius: 18px; padding: 28px; border: 1px solid var(--line); }
+  section.alt .card { border-color: transparent; }
+  .card p { color: var(--muted); margin: 0; font-size: 16px; }
+  .icon {
+    width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
+    background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); margin-bottom: 16px;
+  }
+  .icon svg { width: 24px; height: 24px; }
+
+  /* Steps */
+  .steps { counter-reset: step; display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .step { position: relative; padding: 28px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); }
+  .step::before {
+    counter-increment: step; content: counter(step);
+    display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; margin-bottom: 14px;
+  }
+  .step p { color: var(--muted); font-size: 16px; margin: 0; }
+  kbd {
+    font: 600 .85em -apple-system, BlinkMacSystemFont, sans-serif; padding: 1px 6px;
+    border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; background: var(--bg-alt); color: var(--text);
+  }
+
+  /* Split rows */
+  .split { display: grid; gap: 48px; align-items: center; grid-template-columns: 1fr 1fr; }
+  .split + .split { margin-top: 72px; }
+  .split ul { padding-left: 1.2em; margin: 0; color: var(--muted); }
+  .split li { margin: .4em 0; }
+  .split li strong { color: var(--text); font-weight: 600; }
+  .split .narrow { max-width: 420px; margin: 0 auto; }
+  @media (max-width: 800px) {
+    .split { grid-template-columns: 1fr; gap: 28px; }
+    .split .media { order: -1; }
+  }
+
+  /* Callout */
+  .note {
+    border-left: 4px solid var(--accent); background: var(--bg-alt); border-radius: 0 12px 12px 0;
+    padding: 18px 22px; margin: 32px auto 0; max-width: 820px; font-size: 16px;
+  }
+  .note p:last-child { margin: 0; }
+  .note ol { margin: .4em 0 0; padding-left: 1.3em; }
+  .note li { margin: .3em 0; }
+
+  /* FAQ */
+  .faq { max-width: 780px; margin: 0 auto; }
+  details { border-bottom: 1px solid var(--line); padding: 18px 0; }
+  details:first-child { border-top: 1px solid var(--line); }
+  summary { cursor: pointer; font-weight: 600; font-size: 18px; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; color: var(--muted); font-weight: 400; font-size: 24px; line-height: 1; transition: transform .2s; }
+  details[open] summary::after { transform: rotate(45deg); }
+  details > div { color: var(--muted); padding-top: 10px; font-size: 16px; }
+  details > div p:last-child { margin-bottom: 0; }
+  code { font: .9em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--bg-alt); padding: 1px 5px; border-radius: 5px; color: var(--text); }
+
+  footer { border-top: 1px solid var(--line); padding: 32px 0 48px; font-size: 14px; color: var(--muted); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a class="brand" href="#">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0a84ff"/><path d="M14 34l6-16h24l6 16v10a4 4 0 0 1-4 4H18a4 4 0 0 1-4-4z" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/><path d="M14 34h11a7 7 0 0 0 14 0h11" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/></svg>
+      PST Viewer
+    </a>
+    <nav>
+      <a class="link" href="#wat"><span lang="nl">Wat kan het</span><span lang="en">Features</span></a>
+      <a class="link" href="#hoe"><span lang="nl">Zo werkt het</span><span lang="en">How it works</span></a>
+      <a class="link" href="#vragen"><span lang="nl">Vragen</span><span lang="en">FAQ</span></a>
+      <div class="lang" role="group" aria-label="Taal / Language">
+        <button type="button" data-set-lang="nl" aria-pressed="true">NL</button>
+        <button type="button" data-set-lang="en" aria-pressed="false">EN</button>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="wrap">
+    <h1>
+      <span lang="nl">Je oude Outlook-mail,<br>gewoon op je Mac.</span>
+      <span lang="en">Your old Outlook mail,<br>right on your Mac.</span>
+    </h1>
+    <p class="lead">
+      <span lang="nl">PST Viewer opent Outlook-archieven (<code>.pst</code> en <code>.ost</code>) en oude Netscape- en Thunderbird-mail. Zonder Outlook, zonder gedoe met omzetten — en gratis.</span>
+      <span lang="en">PST Viewer opens Outlook archives (<code>.pst</code> and <code>.ost</code>) and old Netscape and Thunderbird mail. No Outlook, no fiddly conversions — and free.</span>
+    </p>
+    <div class="actions">
+      <div>
+        <a class="btn" href="https://github.com/mukreb/mac-pst-viewer/releases/latest/download/PST-Viewer.zip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M6 11l6 6 6-6M5 20h14"/></svg>
+          <span lang="nl">Download voor Mac</span><span lang="en">Download for Mac</span>
+        </a>
+        <span class="btn-note">
+          <span lang="nl">Gratis · macOS 13 Ventura of nieuwer · Apple-chip en Intel</span>
+          <span lang="en">Free · macOS 13 Ventura or later · Apple silicon and Intel</span>
+        </span>
+      </div>
+    </div>
+    <div class="hero-shot">
+      <img class="shot" src="screenshot-viewer.png" width="984" height="637"
+           alt="PST Viewer met een geopend Outlook-archief: mappen links, berichten in het midden, het gekozen bericht rechts">
+    </div>
+  </div>
+</section>
+
+<!-- Who is it for -->
+<section class="alt">
+  <div class="wrap">
+    <h2><span lang="nl">Herken je dit?</span><span lang="en">Sound familiar?</span></h2>
+    <p class="sub">
+      <span lang="nl">Een map met oude mail die je niet meer kunt openen, omdat het programma waarmee je hem maakte er niet meer is.</span>
+      <span lang="en">A folder of old mail you can't open any more, because the program that made it is long gone.</span>
+    </p>
+    <div class="grid">
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
+        <h3><span lang="nl">Overgestapt van Windows</span><span lang="en">Switched from Windows</span></h3>
+        <p><span lang="nl">Je hebt een Mac gekocht, maar je mail van jaren staat nog in een <code>.pst</code>-bestand van je oude pc.</span><span lang="en">You bought a Mac, but years of mail are still in a <code>.pst</code> file from your old PC.</span></p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></div>
+        <h3><span lang="nl">Archief van het werk</span><span lang="en">An archive from work</span></h3>
+        <p><span lang="nl">Je kreeg bij vertrek een kopie van je mailbox mee, of je moet iets terugzoeken in een oud bedrijfsarchief.</span><span lang="en">You took a copy of your mailbox when you left, or you need to look something up in an old company archive.</span></p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 4v16"/></svg></div>
+        <h3><span lang="nl">Oude back-up gevonden</span><span lang="en">Found an old backup</span></h3>
+        <p><span lang="nl">Op een oude schijf of usb-stick staat mail uit Outlook, Netscape, Mozilla of Thunderbird — misschien wel van twintig jaar terug.</span><span lang="en">An old drive or USB stick holds mail from Outlook, Netscape, Mozilla or Thunderbird — maybe from twenty years ago.</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section id="wat">
+  <div class="wrap">
+    <h2><span lang="nl">Wat kun je ermee?</span><span lang="en">What can it do?</span></h2>
+    <p class="sub">
+      <span lang="nl">Het werkt zoals je van Mail of Outlook gewend bent: mappen links, berichten in het midden, het bericht zelf rechts.</span>
+      <span lang="en">It works the way you know from Mail or Outlook: folders on the left, messages in the middle, the message itself on the right.</span>
+    </p>
+    <div class="grid">
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></div>
+        <h3><span lang="nl">Al je mail lezen</span><span lang="en">Read all your mail</span></h3>
+        <p><span lang="nl">Berichten zien eruit zoals ze verstuurd zijn, met opmaak en afbeeldingen. Ook heel oude Outlook-berichten.</span><span lang="en">Messages look the way they were sent, with formatting and pictures. Even very old Outlook messages.</span></p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12l-8.5 8.5a5 5 0 0 1-7-7L14 5a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 8"/></svg></div>
+        <h3><span lang="nl">Bijlagen openen en bewaren</span><span lang="en">Open and save attachments</span></h3>
+        <p><span lang="nl">Bekijk foto's en documenten met Snel bekijken, open ze, of bewaar ze allemaal tegelijk in een map.</span><span lang="en">Preview photos and documents with Quick Look, open them, or save them all to a folder at once.</span></p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></div>
+        <h3><span lang="nl">Snel zoeken</span><span lang="en">Find things fast</span></h3>
+        <p><span lang="nl">Zoek op onderwerp, afzender of ontvanger, in één map of in alles tegelijk — desgewenst ook in de tekst van de berichten.</span><span lang="en">Search by subject, sender or recipient, in one folder or everywhere — and in the message text too, if you like.</span></p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div>
+        <h3><span lang="nl">Contacten en agenda</span><span lang="en">Contacts and calendar</span></h3>
+        <p><span lang="nl">Ook adresboek, afspraken en taken uit Outlook zijn te bekijken, met telefoonnummers, tijden en locaties.</span><span lang="en">Your Outlook address book, appointments and tasks can be viewed too, with phone numbers, times and locations.</span></p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></div>
+        <h3><span lang="nl">Overzetten naar Apple Mail</span><span lang="en">Move it to Apple Mail</span></h3>
+        <p><span lang="nl">Bewaar losse berichten, een hele map of je zoekresultaten in een formaat dat Apple Mail en Thunderbird kunnen importeren.</span><span lang="en">Save single messages, a whole folder or your search results in a format Apple Mail and Thunderbird can import.</span></p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3><span lang="nl">Veilig en privé</span><span lang="en">Safe and private</span></h3>
+        <p><span lang="nl">Je bestanden worden alleen gelezen, nooit veranderd. Er gaat niets naar internet en er is geen account nodig.</span><span lang="en">Your files are only read, never changed. Nothing is sent to the internet and you don't need an account.</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Details with screenshots -->
+<section class="alt">
+  <div class="wrap">
+    <div class="split">
+      <div>
+        <h2 style="text-align:left"><span lang="nl">Ook voor héél oude archieven</span><span lang="en">Even for really old archives</span></h2>
+        <ul>
+          <li lang="nl"><strong>Outlook 97 tot nu</strong> — ook de oude bestanden van maximaal 2 GB en <code>.ost</code>-bestanden.</li>
+          <li lang="en"><strong>Outlook 97 to today</strong> — including the old files of up to 2 GB and <code>.ost</code> files.</li>
+          <li lang="nl"><strong>Netscape, Mozilla en Thunderbird</strong> — open gewoon de map waarin je mail staat.</li>
+          <li lang="en"><strong>Netscape, Mozilla and Thunderbird</strong> — just open the folder your mail is in.</li>
+          <li lang="nl"><strong>Meerdere archieven tegelijk</strong> — ze staan onder elkaar in de zijbalk.</li>
+          <li lang="en"><strong>Several archives at once</strong> — they're listed one below the other in the sidebar.</li>
+          <li lang="nl"><strong>Verzonden mail</strong> toont aan wie je het stuurde, niet steeds je eigen naam.</li>
+          <li lang="en"><strong>Sent mail</strong> shows who you sent it to, not your own name every time.</li>
+          <li lang="nl"><strong>Vreemde tekens</strong> in oude mail (é, ë, ü…) worden zo goed mogelijk goed getoond; in de instellingen kun je dat bijstellen.</li>
+          <li lang="en"><strong>Accented characters</strong> in old mail (é, ë, ü…) are shown correctly wherever possible; you can fine-tune this in Settings.</li>
+        </ul>
+      </div>
+      <div class="media">
+        <img class="shot" src="screenshot-ansi.png" width="984" height="637" loading="lazy"
+             alt="Een agenda-item uit een oud Outlook-archief, met begin- en eindtijd en locatie">
+      </div>
+    </div>
+
+    <div class="split">
+      <div class="media">
+        <img class="shot narrow" src="screenshot-settings.png" width="520" height="623" loading="lazy"
+             alt="Het instellingenvenster van PST Viewer met taal, weergave en tekenset">
+      </div>
+      <div>
+        <h2 style="text-align:left"><span lang="nl">Voelt als een echte Mac-app</span><span lang="en">Feels like a real Mac app</span></h2>
+        <ul>
+          <li lang="nl"><strong>Nederlands en Engels</strong> — volgt automatisch de taal van je Mac.</li>
+          <li lang="en"><strong>English and Dutch</strong> — follows your Mac's language automatically.</li>
+          <li lang="nl"><strong>Licht en donker</strong> — past zich aan je Mac aan, ook voor de mail zelf.</li>
+          <li lang="en"><strong>Light and dark</strong> — matches your Mac, including the mail itself.</li>
+          <li lang="nl"><strong>Afbeeldingen van internet</strong> worden standaard tegengehouden, zodat afzenders niet zien dat je hun mail opent.</li>
+          <li lang="en"><strong>Images from the internet</strong> are blocked by default, so senders can't tell you opened their mail.</li>
+          <li lang="nl"><strong>Klein en snel</strong> — ook grote archieven gaan meteen open.</li>
+          <li lang="en"><strong>Small and fast</strong> — even large archives open right away.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section id="hoe">
+  <div class="wrap">
+    <h2><span lang="nl">Zo werkt het</span><span lang="en">How it works</span></h2>
+    <p class="sub"><span lang="nl">In drie stappen lees je je oude mail.</span><span lang="en">Three steps to your old mail.</span></p>
+    <div class="steps">
+      <div class="step">
+        <h3><span lang="nl">Downloaden</span><span lang="en">Download</span></h3>
+        <p>
+          <span lang="nl">Klik op <a href="https://github.com/mukreb/mac-pst-viewer/releases/latest/download/PST-Viewer.zip">Download voor Mac</a>. Dubbelklik het zip-bestand in je map Downloads en sleep <strong>PST Viewer</strong> naar je map Apps (Programma's).</span>
+          <span lang="en">Click <a href="https://github.com/mukreb/mac-pst-viewer/releases/latest/download/PST-Viewer.zip">Download for Mac</a>. Double-click the zip file in your Downloads folder and drag <strong>PST Viewer</strong> to your Applications folder.</span>
+        </p>
+      </div>
+      <div class="step">
+        <h3><span lang="nl">De eerste keer openen</span><span lang="en">Open it the first time</span></h3>
+        <p>
+          <span lang="nl">Je Mac waarschuwt dat de app niet door Apple is gecontroleerd. Dat is normaal voor gratis apps zoals deze — hieronder staat precies wat je doet.</span>
+          <span lang="en">Your Mac warns that Apple hasn't checked the app. That's normal for free apps like this one — see below for exactly what to do.</span>
+        </p>
+      </div>
+      <div class="step">
+        <h3><span lang="nl">Je archief openen</span><span lang="en">Open your archive</span></h3>
+        <p>
+          <span lang="nl">Sleep je <code>.pst</code>-bestand of mailmap naar het venster, of kies <strong>Archief → Open PST-bestand of mailmap…</strong> (<kbd>⌘</kbd> <kbd>O</kbd>). Klaar!</span>
+          <span lang="en">Drag your <code>.pst</code> file or mail folder onto the window, or choose <strong>File → Open PST File or Mail Folder…</strong> (<kbd>⌘</kbd> <kbd>O</kbd>). Done!</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Gatekeeper workaround: remove this note (and step 2 above) once releases are notarized. -->
+    <div class="note" id="eerste-keer">
+      <div lang="nl">
+        <p><strong>De eerste keer openen, stap voor stap</strong></p>
+        <p>PST Viewer is gratis en heeft geen betaald Apple-ontwikkelaarsaccount. Daarom zegt je Mac de eerste keer dat hij de app „niet kan controleren”. Zo open je hem toch:</p>
+        <ol>
+          <li>Dubbelklik PST Viewer in je map Apps. Klik in de melding op <strong>Gereed</strong> (of <strong>OK</strong>).</li>
+          <li>Open <strong>Systeeminstellingen → Privacy en beveiliging</strong> en scrol naar beneden.</li>
+          <li>Klik bij „PST Viewer werd geblokkeerd” op <strong>Open toch</strong> en bevestig met je wachtwoord of Touch ID.</li>
+        </ol>
+        <p>Op macOS 13 en 14 kan het ook sneller: klik met de rechtermuisknop (of <kbd>ctrl</kbd>-klik) op de app, kies <strong>Open</strong> en dan nog eens <strong>Open</strong>. Daarna start de app voortaan gewoon met een dubbelklik.</p>
+      </div>
+      <div lang="en">
+        <p><strong>Opening it the first time, step by step</strong></p>
+        <p>PST Viewer is free and doesn't have a paid Apple developer account. That's why your Mac says the first time that it "can't verify" the app. Here's how to open it anyway:</p>
+        <ol>
+          <li>Double-click PST Viewer in Applications. In the message, click <strong>Done</strong> (or <strong>OK</strong>).</li>
+          <li>Open <strong>System Settings → Privacy &amp; Security</strong> and scroll down.</li>
+          <li>Next to "PST Viewer was blocked", click <strong>Open Anyway</strong> and confirm with your password or Touch ID.</li>
+        </ol>
+        <p>On macOS 13 and 14 there's a shortcut: right-click (or <kbd>control</kbd>-click) the app, choose <strong>Open</strong>, then <strong>Open</strong> again. After that the app starts with a normal double-click.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="alt" id="vragen">
+  <div class="wrap">
+    <h2><span lang="nl">Veelgestelde vragen</span><span lang="en">Frequently asked questions</span></h2>
+    <p class="sub"></p>
+    <div class="faq">
+      <details>
+        <summary><span lang="nl">Wat is een PST-bestand eigenlijk?</span><span lang="en">What is a PST file, anyway?</span></summary>
+        <div>
+          <p lang="nl">Outlook op Windows bewaart je mail, contacten en agenda in één groot bestand dat eindigt op <code>.pst</code> (of <code>.ost</code>). Bij het archiveren of exporteren van je mailbox krijg je zo'n bestand. Op een Mac kun je het normaal gesproken niet openen — daar is PST Viewer voor.</p>
+          <p lang="en">Outlook on Windows keeps your mail, contacts and calendar in one big file ending in <code>.pst</code> (or <code>.ost</code>). When you archive or export your mailbox, that's the file you get. A Mac normally can't open it — that's what PST Viewer is for.</p>
+        </div>
+      </details>
+      <details>
+        <summary><span lang="nl">Waar vind ik mijn PST-bestand?</span><span lang="en">Where do I find my PST file?</span></summary>
+        <div>
+          <p lang="nl">Op een Windows-pc staat het meestal in <code>Documenten\Outlook-bestanden</code>, of (bij oudere versies) diep in de verborgen map <code>AppData\Local\Microsoft\Outlook</code>. Zoek op de oude pc of back-upschijf naar <code>*.pst</code>. Kopieer het bestand naar je Mac, bijvoorbeeld via een usb-stick.</p>
+          <p lang="en">On a Windows PC it's usually in <code>Documents\Outlook Files</code>, or (for older versions) deep inside the hidden folder <code>AppData\Local\Microsoft\Outlook</code>. Search the old PC or backup drive for <code>*.pst</code>. Copy the file to your Mac, for example with a USB stick.</p>
+        </div>
+      </details>
+      <details>
+        <summary><span lang="nl">En mijn oude Netscape- of Thunderbird-mail?</span><span lang="en">What about my old Netscape or Thunderbird mail?</span></summary>
+        <div>
+          <p lang="nl">Die programma's bewaren elke mailmap als een bestand zonder extensie, zoals <code>Inbox</code> en <code>Sent</code>. Kies in PST Viewer de map waar die bestanden in staan (of sleep die map naar het venster), en je ziet je mail met alle mappen en submappen. Ook een export uit Apple Mail (<code>.mbox</code>) gaat open.</p>
+          <p lang="en">Those programs keep every mail folder as a file without an extension, such as <code>Inbox</code> and <code>Sent</code>. In PST Viewer, choose the folder that contains those files (or drag that folder onto the window) and you'll see your mail with all its folders and subfolders. An Apple Mail export (<code>.mbox</code>) opens too.</p>
+        </div>
+      </details>
+      <details>
+        <summary><span lang="nl">Kan ik mijn mail overzetten naar Apple Mail?</span><span lang="en">Can I move my mail to Apple Mail?</span></summary>
+        <div>
+          <p lang="nl">Ja. Kies een map en exporteer die als <code>.mbox</code>. In Apple Mail kies je daarna <strong>Archief → Importeer postbussen…</strong> en wijs je dat bestand aan. Je kunt ook alleen je zoekresultaten exporteren, of één bericht bewaren als <code>.eml</code> — dat opent met een dubbelklik in Mail.</p>
+          <p lang="en">Yes. Pick a folder and export it as <code>.mbox</code>. Then in Apple Mail choose <strong>File → Import Mailboxes…</strong> and select that file. You can also export just your search results, or save a single message as <code>.eml</code> — that opens in Mail with a double-click.</p>
+        </div>
+      </details>
+      <details>
+        <summary><span lang="nl">Kan er iets misgaan met mijn bestand?</span><span lang="en">Could anything happen to my file?</span></summary>
+        <div>
+          <p lang="nl">Nee. PST Viewer leest je archief alleen en schrijft er nooit iets in. Je bestand blijft precies zoals het was. Het is wel altijd verstandig om van belangrijke archieven een reservekopie te bewaren.</p>
+          <p lang="en">No. PST Viewer only reads your archive and never writes to it. Your file stays exactly as it was. It's still wise to keep a backup copy of important archives.</p>
+        </div>
+      </details>
+      <details>
+        <summary><span lang="nl">Gaat mijn mail naar internet?</span><span lang="en">Does my mail go to the internet?</span></summary>
+        <div>
+          <p lang="nl">Nee. Alles gebeurt op je eigen Mac. Er is geen account, er wordt niets geüpload en er worden geen gegevens verzameld. Afbeeldingen die in een mail van internet geladen zouden worden, worden standaard tegengehouden; je kunt ze in de instellingen toestaan.</p>
+          <p lang="en">No. Everything happens on your own Mac. There's no account, nothing is uploaded and no data is collected. Images a message would load from the internet are blocked by default; you can allow them in Settings.</p>
+        </div>
+      </details>
+      <details>
+        <summary><span lang="nl">Is het echt gratis?</span><span lang="en">Is it really free?</span></summary>
+        <div>
+          <p lang="nl">Ja, helemaal. PST Viewer is open source (MIT-licentie): iedereen kan de broncode bekijken op <a href="https://github.com/mukreb/mac-pst-viewer">GitHub</a>. Geen advertenties, geen abonnement, geen proefperiode.</p>
+          <p lang="en">Yes, completely. PST Viewer is open source (MIT licence): anyone can read the source code on <a href="https://github.com/mukreb/mac-pst-viewer">GitHub</a>. No ads, no subscription, no trial period.</p>
+        </div>
+      </details>
+      <details>
+        <summary><span lang="nl">Welke Mac heb ik nodig?</span><span lang="en">Which Mac do I need?</span></summary>
+        <div>
+          <p lang="nl">Elke Mac met macOS 13 Ventura of nieuwer, zowel met een Apple-chip (M1 en later) als met een Intel-processor. Welke versie je hebt, zie je via het Apple-menu → <strong>Over deze Mac</strong>.</p>
+          <p lang="en">Any Mac running macOS 13 Ventura or later, with either an Apple chip (M1 and later) or an Intel processor. You can check your version under the Apple menu → <strong>About This Mac</strong>.</p>
+        </div>
+      </details>
+      <details>
+        <summary><span lang="nl">Mijn bestand gaat niet open. Wat nu?</span><span lang="en">My file won't open. What now?</span></summary>
+        <div>
+          <p lang="nl">Controleer of het bestand helemaal gekopieerd is (vergelijk de grootte met het origineel). Lukt het daarna nog niet, <a href="https://github.com/mukreb/mac-pst-viewer/issues">meld het probleem</a> en vermeld de foutmelding en uit welke Outlook-versie het bestand ongeveer komt. Stuur je mail zelf niet mee — die is privé.</p>
+          <p lang="en">Check that the file was copied completely (compare its size with the original). If it still won't open, <a href="https://github.com/mukreb/mac-pst-viewer/issues">report the problem</a> with the error message and roughly which Outlook version the file came from. Don't send the mail itself — it's private.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- Final CTA -->
+<section class="center">
+  <div class="wrap">
+    <h2><span lang="nl">Haal je oude mail terug</span><span lang="en">Get your old mail back</span></h2>
+    <p class="sub"><span lang="nl">Gratis, veilig en in een paar minuten klaar.</span><span lang="en">Free, safe and ready in a few minutes.</span></p>
+    <a class="btn" href="https://github.com/mukreb/mac-pst-viewer/releases/latest/download/PST-Viewer.zip">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M6 11l6 6 6-6M5 20h14"/></svg>
+      <span lang="nl">Download voor Mac</span><span lang="en">Download for Mac</span>
+    </a>
+    <span class="btn-note">
+      <a href="https://github.com/mukreb/mac-pst-viewer/releases"><span lang="nl">Alle versies</span><span lang="en">All versions</span></a>
+      ·
+      <a href="https://github.com/mukreb/mac-pst-viewer"><span lang="nl">Broncode</span><span lang="en">Source code</span></a>
+    </span>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span><span lang="nl">PST Viewer — gratis en open source (MIT-licentie).</span><span lang="en">PST Viewer — free and open source (MIT licence).</span></span>
+    <span><span lang="nl">Niet verbonden aan Microsoft. Outlook is een merk van Microsoft.</span><span lang="en">Not affiliated with Microsoft. Outlook is a trademark of Microsoft.</span></span>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var titles = { nl: "PST Viewer voor Mac", en: "PST Viewer for Mac" };
+    function setLang(lang) {
+      root.lang = lang;
+      document.title = titles[lang];
+      document.querySelectorAll("[data-set-lang]").forEach(function (b) {
+        b.setAttribute("aria-pressed", String(b.dataset.setLang === lang));
+      });
+    }
+    var saved = null;
+    try { saved = localStorage.getItem("lang"); } catch (e) {}
+    var browser = (navigator.language || "").toLowerCase().indexOf("nl") === 0 ? "nl" : "en";
+    setLang(saved === "nl" || saved === "en" ? saved : browser);
+    document.querySelectorAll("[data-set-lang]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        setLang(b.dataset.setLang);
+        try { localStorage.setItem("lang", b.dataset.setLang); } catch (e) {}
+      });
+    });
+  })();
+</script>
+</body>
+</html>
