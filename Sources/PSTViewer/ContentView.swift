@@ -23,8 +23,8 @@ struct ContentView: View {
                         MessageContainerView(ref: ref)
                             .id(ref)
                     } else {
-                        EmptyStateView(symbol: "envelope.open", title: "Geen bericht geselecteerd",
-                                       subtitle: "Kies een bericht in de lijst om het te bekijken.")
+                        EmptyStateView(symbol: "envelope.open", title: tr("No Message Selected", "Geen bericht geselecteerd"),
+                                       subtitle: tr("Choose a message in the list to view it.", "Kies een bericht in de lijst om het te bekijken."))
                     }
                 }
             }
@@ -38,7 +38,7 @@ struct ContentView: View {
         }
         .overlay {
             if isDropTarget {
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: Corner.panel, style: .continuous)
                     .stroke(Color.accentColor, lineWidth: 4)
                     .padding(4)
                     .allowsHitTesting(false)
@@ -53,11 +53,12 @@ struct ContentView: View {
             }
             return true
         }
-        .alert("Fout", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
+        .alert(tr("Error", "Fout"), isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(model.errorMessage ?? "")
         }
+        .localizedRoot()
     }
 }
 
@@ -80,7 +81,7 @@ struct ProgressOverlay: View {
                     .font(.callout)
             }
             .padding(24)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .glassPanel(in: RoundedRectangle(cornerRadius: Corner.panel, style: .continuous))
         }
     }
 }
@@ -119,27 +120,28 @@ struct WelcomeView: View {
             VStack(spacing: 6) {
                 Text("PST Viewer")
                     .font(.largeTitle.weight(.semibold))
-                Text("Bekijk Outlook-archieven (.pst en .ost) op je Mac — alleen-lezen, zonder Outlook.")
+                Text(tr("View Outlook archives (.pst and .ost) on your Mac — read-only, without Outlook.",
+                        "Bekijk Outlook-archieven (.pst en .ost) op je Mac — alleen-lezen, zonder Outlook."))
                     .foregroundStyle(.secondary)
             }
             Button {
                 model.showOpenPanel()
             } label: {
-                Label("Open PST-bestand…", systemImage: "folder")
+                Label(tr("Open PST File…", "Open PST-bestand…"), systemImage: "folder")
                     .padding(.horizontal, 8)
             }
             .controlSize(.large)
-            .buttonStyle(.borderedProminent)
+            .glassButtonStyle(prominent: true)
             .keyboardShortcut(.defaultAction)
 
-            Text("of sleep een bestand naar dit venster")
+            Text(tr("or drag a file onto this window", "of sleep een bestand naar dit venster"))
                 .font(.callout)
                 .foregroundStyle(.tertiary)
 
             let recents = model.recentFiles.filter { FileManager.default.fileExists(atPath: $0.path) }
             if !recents.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Recent geopend")
+                    Text(tr("Recently Opened", "Recent geopend"))
                         .font(.headline)
                     ForEach(recents, id: \.self) { url in
                         Button {
@@ -162,7 +164,7 @@ struct WelcomeView: View {
                 }
                 .frame(maxWidth: 420, alignment: .leading)
                 .padding()
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: Corner.card, style: .continuous))
             }
         }
         .padding(40)
@@ -175,46 +177,80 @@ struct SettingsView: View {
     @AppStorage("showSystemFolders") private var showSystemFolders = false
     @AppStorage("defaultCodepage") private var defaultCodepage = 1252
     @AppStorage("loadRemoteContent") private var loadRemoteContent = false
+    @AppStorage(AppSettings.languageKey) private var language = LanguageSetting.system.rawValue
+    @AppStorage(AppSettings.appearanceKey) private var appearance: AppearanceSetting = .system
+    @AppStorage(AppSettings.darkMessagesKey) private var darkMessages = true
+
+    /// Updates `tr()` before the stored value changes, so every view that redraws sees the new language.
+    private var languageBinding: Binding<LanguageSetting> {
+        Binding(get: { LanguageSetting(rawValue: language) ?? .system },
+                set: { AppSettings.applyLanguage($0); language = $0.rawValue })
+    }
 
     var body: some View {
         // Grouped form: labels on the left, controls on the right, long explanations wrap
         // underneath instead of being clipped by the window.
         Form {
-            Section("Mappen") {
+            Section {
+                Picker(tr("Language", "Taal"), selection: languageBinding) {
+                    ForEach(LanguageSetting.allCases) { Text($0.title).tag($0) }
+                }
+                Picker(tr("Appearance", "Weergave"), selection: $appearance) {
+                    ForEach(AppearanceSetting.allCases) { Text($0.title).tag($0) }
+                }
+                .onChange(of: appearance) { v in AppSettings.applyAppearance(v) }
+                Toggle(isOn: $darkMessages) {
+                    Text(tr("Dark message backgrounds", "Donkere achtergrond voor berichten"))
+                    Text(tr("In dark mode, show HTML messages with dark colors instead of on a white page.",
+                            "Toon HTML-berichten in donkere modus met donkere kleuren in plaats van op een wit vel."))
+                }
+            } header: {
+                Text(tr("General", "Algemeen"))
+            } footer: {
+                Text(tr("System default uses your Mac's language, or English if it isn't available. Menu items provided by macOS switch after restarting the app.",
+                        "Systeemstandaard volgt de taal van je Mac, of Engels als die niet beschikbaar is. Menu-onderdelen van macOS zelf wisselen na een herstart van de app."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Section(tr("Folders", "Mappen")) {
                 Toggle(isOn: $showSystemFolders) {
-                    Text("Toon systeemmappen")
-                    Text("Interne Outlook-mappen zoals Search Root en Freebusy Data.")
+                    Text(tr("Show system folders", "Toon systeemmappen"))
+                    Text(tr("Internal Outlook folders such as Search Root and Freebusy Data.",
+                            "Interne Outlook-mappen zoals Search Root en Freebusy Data."))
                 }
                 .onChange(of: showSystemFolders) { _ in model.rebuildStores() }
             }
-            Section("Berichten") {
+            Section(tr("Messages", "Berichten")) {
                 Toggle(isOn: $loadRemoteContent) {
-                    Text("Externe afbeeldingen laden")
-                    Text("Afbeeldingen van internet in HTML-berichten. Standaard uit voor privacy.")
+                    Text(tr("Load remote images", "Externe afbeeldingen laden"))
+                    Text(tr("Images from the internet in HTML messages. Off by default for privacy.",
+                            "Afbeeldingen van internet in HTML-berichten. Standaard uit voor privacy."))
                 }
             }
             Section {
-                Picker("Standaardtekenset", selection: $defaultCodepage) {
-                    Text("West-Europees (Windows-1252)").tag(1252)
-                    Text("Centraal-Europees (Windows-1250)").tag(1250)
-                    Text("Cyrillisch (Windows-1251)").tag(1251)
-                    Text("Grieks (Windows-1253)").tag(1253)
-                    Text("Turks (Windows-1254)").tag(1254)
-                    Text("Japans (Shift-JIS)").tag(932)
+                Picker(tr("Default character set", "Standaardtekenset"), selection: $defaultCodepage) {
+                    Text(tr("Western European (Windows-1252)", "West-Europees (Windows-1252)")).tag(1252)
+                    Text(tr("Central European (Windows-1250)", "Centraal-Europees (Windows-1250)")).tag(1250)
+                    Text(tr("Cyrillic (Windows-1251)", "Cyrillisch (Windows-1251)")).tag(1251)
+                    Text(tr("Greek (Windows-1253)", "Grieks (Windows-1253)")).tag(1253)
+                    Text(tr("Turkish (Windows-1254)", "Turks (Windows-1254)")).tag(1254)
+                    Text(tr("Japanese (Shift-JIS)", "Japans (Shift-JIS)")).tag(932)
                     Text("UTF-8").tag(65001)
                 }
                 .onChange(of: defaultCodepage) { v in model.defaultCodepage = v }
             } header: {
-                Text("Oude (ANSI) berichten")
+                Text(tr("Old (ANSI) Messages", "Oude (ANSI) berichten"))
             } footer: {
-                Text("Wordt alleen gebruikt als een bericht zelf geen tekenset aangeeft. Open het bestand opnieuw om de wijziging overal toe te passen.")
+                Text(tr("Only used when a message doesn't specify its own character set. Reopen the file to apply the change everywhere.",
+                        "Wordt alleen gebruikt als een bericht zelf geen tekenset aangeeft. Open het bestand opnieuw om de wijziging overal toe te passen."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .formStyle(.grouped)
-        .frame(width: 500)
+        .frame(width: 520)
         .fixedSize(horizontal: false, vertical: true)
     }
 }

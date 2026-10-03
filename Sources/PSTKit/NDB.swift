@@ -103,7 +103,7 @@ final class NDB: @unchecked Sendable {
             }
             self.nodes[e.nid] = e
         }
-        if nodes.isEmpty { throw PSTError.corrupt("de node-index is leeg") }
+        if nodes.isEmpty { throw PSTError.corrupt(tr("the node index is empty", "de node-index is leeg")) }
     }
 
     var nodeCount: Int { nodes.count }
@@ -166,7 +166,7 @@ final class NDB: @unchecked Sendable {
         let size = Int(entry.cb)
         // Compare without adding file-controlled values (a crafted offset must not overflow).
         guard entry.ib <= UInt64(data.count), UInt64(size) <= UInt64(data.count) - entry.ib else {
-            throw PSTError.corrupt("blok buiten bestand")
+            throw PSTError.corrupt(tr("block outside file", "blok buiten bestand"))
         }
         var bytes = data.bytes(at: Int(entry.ib), count: size)
 
@@ -179,7 +179,7 @@ final class NDB: @unchecked Sendable {
             let rawSize = Int(footer.u16(18))
             if rawSize > size, footer.count == 24 {
                 guard let inflated = Inflate.zlib(bytes, expectedSize: rawSize), inflated.count == rawSize else {
-                    throw PSTError.corrupt(String(format: "blok 0x%llx kan niet worden uitgepakt", bid))
+                    throw PSTError.corrupt(String(format: tr("block 0x%llx cannot be decompressed", "blok 0x%llx kan niet worden uitgepakt"), bid))
                 }
                 bytes = inflated
             }
@@ -209,7 +209,7 @@ final class NDB: @unchecked Sendable {
         let b = try block(bid)
         guard (bid & 0x2) != 0 else { return [b] }
         // XBLOCK / XXBLOCK
-        guard b.u8(0) == 0x01, depth < 3 else { throw PSTError.corrupt("onverwacht interne blok") }
+        guard b.u8(0) == 0x01, depth < 3 else { throw PSTError.corrupt(tr("unexpected internal block", "onverwacht intern blok")) }
         let level = b.u8(1)
         let count = Int(b.u16(2))
         let width = format.is64 ? 8 : 4
@@ -250,7 +250,7 @@ final class NDB: @unchecked Sendable {
     private func collectSubnodes(_ bid: UInt64, depth: Int, into result: inout [UInt32: SubnodeEntry]) throws {
         guard depth < 4 else { return }
         let b = try block(bid)
-        guard b.u8(0) == 0x02 else { throw PSTError.corrupt("ongeldig subnode-blok") }
+        guard b.u8(0) == 0x02 else { throw PSTError.corrupt(tr("invalid subnode block", "ongeldig subnode-blok")) }
         let level = b.u8(1)
         let count = Int(b.u16(2))
         let start = format.is64 ? 8 : 4

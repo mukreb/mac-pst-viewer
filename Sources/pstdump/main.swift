@@ -10,7 +10,7 @@ import PSTKit
 
 let args = CommandLine.arguments
 guard args.count >= 2 else {
-    print("Gebruik: pstdump <bestand.pst> [--messages | --show <nid> | --eml <nid> | --props <nid>]")
+    print("Usage: pstdump <file.pst> [--messages | --show <nid> | --eml <nid> | --props <nid>]")
     exit(1)
 }
 
@@ -39,10 +39,10 @@ do {
         }
         walk(try pst.rootFolder(), "")
     case "--table":
-        guard args.count > 3, let nid = parseNID(args[3]) else { print("nid ontbreekt"); exit(1) }
+        guard args.count > 3, let nid = parseNID(args[3]) else { print("missing nid"); exit(1) }
         print(pst.debugTable(nid: nid))
     case "--show", "--eml", "--props":
-        guard args.count > 3, let nid = parseNID(args[3]) else { print("nid ontbreekt"); exit(1) }
+        guard args.count > 3, let nid = parseNID(args[3]) else { print("missing nid"); exit(1) }
         let m = try pst.message(nid: nid)
         if mode == "--eml" {
             print(String(decoding: try EMLWriter.eml(for: m), as: UTF8.self))
@@ -51,24 +51,24 @@ do {
                 print(String(format: "0x%08X %@ = %@", p.tag, m.propertyName(p.id), String(p.value.description.prefix(200))))
             }
         } else {
-            print("Klasse:  \(m.messageClass)")
-            print("Onderwerp: \(m.subject)")
-            print("Van:     \(m.from)")
-            print("Aan:     \(m.to)")
+            print("Class:   \(m.messageClass)")
+            print("Subject: \(m.subject)")
+            print("From:    \(m.from)")
+            print("To:      \(m.to)")
             if !m.cc.isEmpty { print("Cc:      \(m.cc)") }
-            print("Datum:   \(m.date.map { df.string(from: $0) } ?? "-")")
+            print("Date:    \(m.date.map { df.string(from: $0) } ?? "-")")
             for (k, v) in m.details { print("\(k): \(v)") }
             for a in m.attachments {
-                print("Bijlage: \(a.filename) (\(a.size) bytes, methode \(a.method)\(a.isEmbeddedMessage ? ", bericht" : ""))")
+                print("Attachment: \(a.filename) (\(a.size) bytes, method \(a.method)\(a.isEmbeddedMessage ? ", message" : ""))")
             }
             switch m.body {
-            case .html(let h): print("--- HTML (\(h.count) tekens) ---\n\(h.prefix(2000))")
+            case .html(let h): print("--- HTML (\(h.count) characters) ---\n\(h.prefix(2000))")
             case .rtf(let r): print("--- RTF (\(r.count) bytes) ---\n\(RTF.plainText([UInt8](r)).prefix(2000))")
-            case .text(let t): print("--- Tekst ---\n\(t.prefix(2000))")
+            case .text(let t): print("--- Text ---\n\(t.prefix(2000))")
             }
         }
     default:
-        print("\(pst.displayName) — \(pst.format.rawValue), versleuteling: \(pst.encryption), \(pst.nodeCount) nodes")
+        print("\(pst.displayName) — \(pst.format.rawValue), encryption: \(pst.encryption), \(pst.nodeCount) nodes")
         let root = try pst.rootFolder()
         func walk(_ f: Folder, _ depth: Int) {
             let indent = String(repeating: "  ", count: depth)
@@ -85,6 +85,6 @@ do {
         walk(root, 0)
     }
 } catch {
-    print("Fout: \(error)")
+    print("Error: \(error)")
     exit(2)
 }

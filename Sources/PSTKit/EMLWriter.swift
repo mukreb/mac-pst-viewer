@@ -9,7 +9,7 @@ public enum EMLWriter {
     /// `depth` limits nested embedded messages, so a corrupt file whose attachments point back
     /// to their own message cannot recurse forever.
     static func eml(for m: Message, depth: Int) throws -> Data {
-        guard depth < 16 else { throw PSTError.corrupt("te diep geneste bijgevoegde berichten") }
+        guard depth < 16 else { throw PSTError.corrupt(tr("attached messages nested too deeply", "te diep geneste bijgevoegde berichten")) }
         if let problem = m.recipientError ?? m.bodyError { throw PSTError.corrupt("\(m.subject): \(problem)") }
         var out = ""
         // NIDs of embedded messages are only unique within their parent, so add randomness.
@@ -61,7 +61,7 @@ public enum EMLWriter {
                 out += "\r\n--\(boundaryMixed)\r\n"
                 if a.isEmbeddedMessage {
                     guard let em = try m.embeddedMessage(a) else {
-                        throw PSTError.corrupt("bijgevoegd bericht '\(a.filename)' kan niet worden gelezen")
+                        throw PSTError.corrupt(tr("attached message '\(a.filename)' cannot be read", "bijgevoegd bericht '\(a.filename)' kan niet worden gelezen"))
                     }
                     out += "Content-Type: message/rfc822\r\n"
                     out += "Content-Disposition: attachment; \(mimeParam("filename", safeName(a.filename) + ".eml"))\r\n\r\n"
@@ -69,7 +69,8 @@ public enum EMLWriter {
                 } else if a.isExternalReference {
                     // The PST only holds a link to a file elsewhere: say so instead of an empty file.
                     // Base64 like every other UTF-8 part: the name may be non-ASCII or very long.
-                    let note = "Deze bijlage (\(flat(a.filename))) was een koppeling naar een extern bestand en zit niet in het PST-bestand.\r\n"
+                    let note = tr("This attachment (\(flat(a.filename))) was a link to an external file and is not stored in the PST file.",
+                                  "Deze bijlage (\(flat(a.filename))) was een koppeling naar een extern bestand en zit niet in het PST-bestand.") + "\r\n"
                     out += "Content-Type: text/plain; charset=utf-8; \(mimeParam("name", a.filename + ".txt"))\r\n"
                     out += "Content-Transfer-Encoding: base64\r\n"
                     out += "Content-Disposition: attachment; \(mimeParam("filename", a.filename + ".txt"))\r\n\r\n"
@@ -79,7 +80,7 @@ public enum EMLWriter {
                     // Fail loudly rather than export a silently empty attachment.
                     let data: Data
                     do { data = try m.data(for: a) } catch {
-                        throw PSTError.corrupt("bijlage '\(a.filename)' kan niet worden gelezen (\(error))")
+                        throw PSTError.corrupt(tr("attachment '\(a.filename)' cannot be read (\(error))", "bijlage '\(a.filename)' kan niet worden gelezen (\(error))"))
                     }
                     let mimeTag = a.mimeType.components(separatedBy: .whitespacesAndNewlines).joined()
                     let mime = mimeTag.contains("/") ? mimeTag : "application/octet-stream"

@@ -15,6 +15,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // left to SwiftUI (`onOpenURL` below). Implementing `application(_:open:)` here would
     // stop SwiftUI from creating the main window when the app is launched with a file.
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        AppSettings.applyAppearance(AppSettings.appearance)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Needed when started as a bare executable (`swift run`) instead of an .app bundle.
         NSApp.setActivationPolicy(.regular)
@@ -38,7 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     let size = host.fittingSize
                     let window = NSWindow(contentRect: NSRect(x: 60, y: 60, width: size.width, height: size.height),
                                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
-                    window.title = "Instellingen"
+                    window.title = tr("Settings", "Instellingen")
                     window.contentView = host
                     window.makeKeyAndOrderFront(nil)
                     AppDelegate.settingsSnapshotWindow = window
@@ -132,6 +136,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct PSTViewerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model = ViewerModel()
+    /// Observed so the menu commands below are rebuilt when the language changes.
+    @AppStorage(AppSettings.languageKey) private var language = LanguageSetting.system.rawValue
+
+    init() {
+        AppSettings.applyLanguage(AppSettings.language)
+    }
+
+    /// `tr()` that also reads `language`, so SwiftUI knows the scene depends on it.
+    private func t(_ english: String, _ dutch: String) -> String {
+        _ = language
+        return tr(english, dutch)
+    }
 
     var body: some Scene {
         Window("PST Viewer", id: "main") {
@@ -156,25 +172,26 @@ struct PSTViewerApp: App {
         }
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("Open PST-bestand…") { model.showOpenPanel() }
+                Button(t("Open PST File…", "Open PST-bestand…")) { model.showOpenPanel() }
                     .keyboardShortcut("o")
             }
             CommandGroup(after: .importExport) {
-                Button("Exporteer geselecteerd bericht als .eml…") {
+                Button(t("Export Selected Message as .eml…", "Exporteer geselecteerd bericht als .eml…")) {
                     if let m = model.selectedMessage { model.exportMessages([m]) }
                 }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
                 .disabled(model.selectedMessage == nil)
-                Button("Exporteer map als mbox…") {
+                Button(t("Export Folder as mbox…", "Exporteer map als mbox…")) {
                     if let f = model.selectedFolder { model.exportFolderAsMbox(f) }
                 }
                 .disabled(model.selectedFolder == nil)
             }
         }
 
-        WindowGroup("Bericht", for: MessageRef.self) { $ref in
+        WindowGroup(t("Message", "Bericht"), for: MessageRef.self) { $ref in
             if let ref {
                 MessageContainerView(ref: ref)
+                    .localizedRoot()
                     .environmentObject(model)
                     .frame(minWidth: 640, minHeight: 480)
             }
@@ -182,6 +199,7 @@ struct PSTViewerApp: App {
 
         Settings {
             SettingsView()
+                .localizedRoot()
                 .environmentObject(model)
         }
     }

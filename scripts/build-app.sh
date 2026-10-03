@@ -12,11 +12,11 @@ if [[ "${1:-}" == "universal" ]]; then
   ARCH_FLAGS=(--arch arm64 --arch x86_64)
 fi
 
-echo "▸ Compileren (release)…"
+echo "▸ Compiling (release)…"
 swift build -c release --product PSTViewer ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
 BIN_DIR="$(swift build -c release --product PSTViewer ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)"
 
-echo "▸ App-bundel samenstellen…"
+echo "▸ Assembling app bundle…"
 # Assemble and sign in a temporary folder: inside iCloud Drive (or after Finder copies) files get
 # extended attributes that make `codesign` fail with "resource fork, Finder information … not allowed".
 WORK="$(mktemp -d)"
@@ -25,8 +25,10 @@ STAGE="$WORK/PST Viewer.app"
 mkdir -p "$STAGE/Contents/MacOS" "$STAGE/Contents/Resources"
 cp "$BIN_DIR/PSTViewer" "$STAGE/Contents/MacOS/PSTViewer"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
+# Localized Info.plist strings; their presence also tells macOS which languages the app supports.
+cp -R Resources/*.lproj "$STAGE/Contents/Resources/"
 
-echo "▸ Icoon maken…"
+echo "▸ Creating icon…"
 if swift scripts/make-icon.swift "$WORK/icon.png" 2>/dev/null; then
   ICONSET="$WORK/AppIcon.iconset"
   mkdir -p "$ICONSET"
@@ -36,10 +38,10 @@ if swift scripts/make-icon.swift "$WORK/icon.png" 2>/dev/null; then
   done
   iconutil -c icns "$ICONSET" -o "$STAGE/Contents/Resources/AppIcon.icns"
 else
-  echo "  (icoon overgeslagen)"
+  echo "  (icon skipped)"
 fi
 
-echo "▸ Ad-hoc ondertekenen…"
+echo "▸ Ad-hoc signing…"
 xattr -cr "$STAGE"
 codesign --force --deep --sign - "$STAGE"
 
@@ -47,6 +49,6 @@ rm -rf "$APP"
 mkdir -p dist
 ditto "$STAGE" "$APP"
 
-echo "✓ Klaar: $APP"
-echo "  Starten:  open \"$APP\""
-echo "  Of sleep de app naar /Programma's."
+echo "✓ Done: $APP"
+echo "  Launch:  open \"$APP\""
+echo "  Or drag the app to /Applications."

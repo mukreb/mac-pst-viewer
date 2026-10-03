@@ -17,15 +17,17 @@ public final class PSTFile: @unchecked Sendable {
     public var format: PSTFormat { ndb.format }
     public var encryption: String {
         switch ndb.cryptMethod {
-        case 0: return "geen"
+        case 0: return tr("none", "geen")
         case 1: return "compressible"
         default: return "high"
         }
     }
 
-    /// Display name of the message store (e.g. "Persoonlijke mappen").
+    /// Display name of the message store (e.g. "Personal Folders"); often not the file name.
     public private(set) var displayName: String = ""
     public private(set) var rootFolderNID: UInt32 = 0x122
+    /// Special folders named by the message store itself (by entry ID), e.g. Sent Items.
+    public private(set) var specialFolders: [UInt32: FolderKind] = [:]
 
     /// Named property map: (guid, lid or name) -> local property id (0x8000+).
     private var namedByLID: [String: [UInt32: UInt16]] = [:]
@@ -36,8 +38,21 @@ public final class PSTFile: @unchecked Sendable {
         self.url = url
         let data = try Data(contentsOf: url, options: [.alwaysMapped])
         ndb = try NDB(data: data)
+        // PST entry IDs are 4 flag bytes + 16-byte provider UID + the folder's NID (little-endian).
+        func entryNID(_ v: PropertyValue?) -> UInt32? {
+            guard case .binary(let b)? = v, b.count >= 24 else { return nil }
+            return UInt32(b[20]) | UInt32(b[21]) << 8 | UInt32(b[22]) << 16 | UInt32(b[23]) << 24
+        }
         if let store = try? propertyContext(nid: 0x21) {
             displayName = store.value(PropID.displayName)?.stringValue(codepage: PSTText.defaultCodepage) ?? ""
+            let special: [(UInt16, FolderKind)] = [(0x35E2, .outbox), (0x35E3, .trash), (0x35E4, .sent)]
+            for (tag, kind) in special {
+                if let nid = entryNID(store.value(tag)) { specialFolders[nid] = kind }
+            }
+        }
+        // PidTagIpmDraftsEntryId lives on the root folder rather than on the store.
+        if let root = try? propertyContext(nid: rootFolderNID), let nid = entryNID(root.value(0x36D7)) {
+            specialFolders[nid] = .drafts
         }
         if displayName.isEmpty { displayName = url.deletingPathExtension().lastPathComponent }
         loadNameMap()
@@ -58,7 +73,7 @@ public final class PSTFile: @unchecked Sendable {
     }
 
     func table(nid: UInt32) throws -> TableContext {
-        guard let n = node(nid) else { throw PSTError.notFound("tabel 0x\(String(nid, radix: 16))") }
+        guard let n = node(nid) else { throw PSTError.notFound(tr("table 0x\(String(nid, radix: 16))", "tabel 0x\(String(nid, radix: 16))")) }
         return try TableContext(n)
     }
 
@@ -125,7 +140,7 @@ public final class PSTFile: @unchecked Sendable {
         // so its messages and subfolders stay reachable.
         let pc = try? propertyContext(nid: nid)
         let cp = PSTText.defaultCodepage
-        let name = pc == nil ? "⚠︎ Onleesbare map (0x\(String(nid, radix: 16)))"
+        let name = pc == nil ? tr("⚠︎ Unreadable folder (0x\(String(nid, radix: 16)))", "⚠︎ Onleesbare map (0x\(String(nid, radix: 16)))")
             : pc?.value(PropID.displayName)?.stringValue(codepage: cp) ?? ""
         var folder = Folder(
             nid: nid,
@@ -133,6 +148,7 @@ public final class PSTFile: @unchecked Sendable {
             contentCount: Int(pc?.value(PropID.contentCount)?.intValue ?? 0),
             unreadCount: Int(pc?.value(PropID.contentUnread)?.intValue ?? 0),
             containerClass: pc?.value(PropID.containerClass)?.stringValue(codepage: cp) ?? "",
+            specialKind: specialFolders[nid],
             children: []
         )
         guard depth < 64 else { return folder }
@@ -178,6 +194,7 @@ public final class PSTFile: @unchecked Sendable {
                     subject: PSTText.cleanSubject(str(PropID.subject)),
                     from: str(PropID.sentRepresentingName),
                     to: str(PropID.displayTo),
+                    cc: str(PropID.displayCc),
                     date: row[PropID.messageDeliveryTime]?.dateValue ?? row[PropID.clientSubmitTime]?.dateValue
                         ?? row[PropID.lastModificationTime]?.dateValue,
                     size: Int(row[PropID.messageSize]?.intValue ?? 0),
@@ -205,7 +222,7 @@ public final class PSTFile: @unchecked Sendable {
 
     /// Loads the full message.
     public func message(nid: UInt32) throws -> Message {
-        guard let n = node(nid) else { throw PSTError.notFound("bericht") }
+        guard let n = node(nid) else { throw PSTError.notFound(tr("message", "bericht")) }
         return try Message(file: self, node: n)
     }
 
@@ -223,15 +240,16 @@ public final class PSTFile: @unchecked Sendable {
         case .object(let nid, _)?:
             // OLE / embedded object stored in a subnode.
             guard let sub = try attachment.node.subnode(nid) else {
-                throw PSTError.corrupt("gegevens van bijlage '\(attachment.filename)' ontbreken")
+                throw PSTError.corrupt(tr("data of attachment '\(attachment.filename)' is missing", "gegevens van bijlage '\(attachment.filename)' ontbreken"))
             }
             return Data(try ndb.dataStream(sub.bidData))
         default:
             // By-reference attachments (methods 2, 3, 4 and 7) only point to a file elsewhere.
             if attachment.isExternalReference {
-                throw PSTError.notFound("'\(attachment.filename)' is een koppeling naar een extern bestand; de inhoud zit niet in het PST-bestand")
+                throw PSTError.notFound(tr("'\(attachment.filename)' is a link to an external file; its contents aren't stored in the PST file",
+                                          "'\(attachment.filename)' is een koppeling naar een extern bestand; de inhoud zit niet in het PST-bestand"))
             }
-            throw PSTError.corrupt("gegevens van bijlage '\(attachment.filename)' ontbreken")
+            throw PSTError.corrupt(tr("data of attachment '\(attachment.filename)' is missing", "gegevens van bijlage '\(attachment.filename)' ontbreken"))
         }
     }
 
@@ -240,12 +258,13 @@ public final class PSTFile: @unchecked Sendable {
         let attrs = (try? FileManager.default.attributesOfItem(atPath: url.path)) ?? [:]
         let size = (attrs[.size] as? NSNumber)?.int64Value ?? Int64(ndb.data.count)
         return [
-            ("Bestand", url.lastPathComponent),
-            ("Formaat", format.rawValue),
-            ("Versleuteling", encryption),
-            ("Grootte", ByteCountFormatter.string(fromByteCount: size, countStyle: .file)),
-            ("Nodes", String(ndb.nodeCount)),
-            ("Blokken", String(ndb.blockCount)),
+            (tr("File", "Bestand"), url.lastPathComponent),
+            (tr("Store name", "Naam archief"), displayName),
+            (tr("Format", "Formaat"), format.rawValue),
+            (tr("Encryption", "Versleuteling"), encryption),
+            (tr("Size", "Grootte"), ByteCountFormatter.string(fromByteCount: size, countStyle: .file)),
+            (tr("Nodes", "Nodes"), String(ndb.nodeCount)),
+            (tr("Blocks", "Blokken"), String(ndb.blockCount)),
         ]
     }
 }
@@ -272,6 +291,8 @@ public struct Folder: Identifiable, Hashable, Sendable {
     public let contentCount: Int
     public let unreadCount: Int
     public let containerClass: String
+    /// Set when the message store names this folder as a special folder (Sent Items, …).
+    public var specialKind: FolderKind? = nil
     public var children: [Folder]
 
     public var id: UInt32 { nid }
@@ -287,12 +308,15 @@ public struct Folder: Identifiable, Hashable, Sendable {
         if c.hasPrefix("ipf.task") { return .tasks }
         if c.hasPrefix("ipf.stickynote") { return .notes }
         if c.hasPrefix("ipf.journal") { return .journal }
-        let n = name.lowercased()
-        if ["inbox", "postvak in", "postvak in "].contains(n) { return .inbox }
-        if ["sent items", "verzonden items", "sent"].contains(n) { return .sent }
+        if let specialKind { return specialKind }
+        let n = name.lowercased().trimmingCharacters(in: .whitespaces)
+        if ["inbox", "postvak in", "posteingang", "boîte de réception", "bandeja de entrada", "posta in arrivo"].contains(n) { return .inbox }
+        if ["sent items", "sent", "sent mail", "sent messages", "verzonden items", "verzonden", "gesendete elemente",
+            "gesendete objekte", "éléments envoyés", "elementos enviados", "posta inviata", "skickat",
+            "skickade objekt", "sendt", "sendte elementer", "sendt post"].contains(n) { return .sent }
         if ["deleted items", "verwijderde items", "trash"].contains(n) { return .trash }
-        if ["drafts", "concepten"].contains(n) { return .drafts }
-        if ["outbox", "postvak uit"].contains(n) { return .outbox }
+        if ["drafts", "concepten", "entwürfe", "brouillons", "borradores", "bozze"].contains(n) { return .drafts }
+        if ["outbox", "postvak uit", "postausgang", "boîte d'envoi", "bandeja de salida", "posta in uscita"].contains(n) { return .outbox }
         if ["junk e-mail", "ongewenste e-mail", "junk email", "spam"].contains(n) { return .junk }
         return .mail
     }
@@ -310,6 +334,7 @@ public struct MessageSummary: Identifiable, Hashable, Sendable {
     public var subject: String
     public var from: String
     public var to: String
+    public var cc: String
     public var date: Date?
     public var size: Int
     public var flags: Int
@@ -349,7 +374,7 @@ public enum ItemKind: Sendable {
 extension PSTFile {
     /// Human-readable dump of a table context (debugging aid used by `pstdump --table`).
     public func debugTable(nid: UInt32) -> String {
-        guard let tc = try? table(nid: nid) else { return "geen tabel" }
+        guard let tc = try? table(nid: nid) else { return "no table" }
         var out = "rows=\(tc.rowCount) rowSize=\(tc.rowSize) ceb=\(tc.cebOffset)\n"
         for c in tc.columns {
             out += String(format: "  col 0x%08X off=%d size=%d bit=%d %@\n", c.tag, c.offset, c.size, c.bit, propertyName(c.id))

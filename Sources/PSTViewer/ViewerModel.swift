@@ -22,7 +22,9 @@ struct FolderNode: Identifiable, Hashable {
     let children: [FolderNode]?
 
     var id: FolderRef { ref }
-    var name: String { folder.name.isEmpty ? "(naamloos)" : folder.name }
+    var name: String { folder.name.isEmpty ? tr("(untitled)", "(naamloos)") : folder.name }
+    /// Folders whose messages were written by the user: the list shows recipients instead of senders.
+    var showsRecipients: Bool { [FolderKind.sent, .outbox, .drafts].contains(folder.kind) }
 }
 
 /// One opened PST/OST file.
@@ -33,6 +35,17 @@ final class OpenStore: Identifiable {
     /// Folders shown in the sidebar (the IPM subtree when present).
     let nodes: [FolderNode]
     let allNodes: [FolderNode]
+
+    /// The file name shown in the sidebar, e.g. "archive-2009.pst".
+    var fileName: String { file.url.lastPathComponent }
+
+    /// The store's internal name ("Personal Folders", …) when it adds something to the file name.
+    var storeNameIfDifferent: String? {
+        let name = file.displayName.trimmingCharacters(in: .whitespaces)
+        let base = file.url.deletingPathExtension().lastPathComponent
+        if name.isEmpty || name.caseInsensitiveCompare(base) == .orderedSame { return nil }
+        return name
+    }
 
     init(file: PSTFile, root: Folder, showSystemFolders: Bool) {
         self.file = file
@@ -98,10 +111,17 @@ struct MessageRow: Identifiable, Hashable {
     let ref: MessageRef
     let summary: MessageSummary
     var folderName: String = ""
+    /// Set for messages in Sent Items, Outbox and Drafts.
+    var isOutgoing = false
 
     var id: MessageRef { ref }
-    var subject: String { summary.subject.isEmpty ? "(geen onderwerp)" : summary.subject }
+    var subject: String { summary.subject.isEmpty ? tr("(no subject)", "(geen onderwerp)") : summary.subject }
     var from: String { summary.from }
+    /// To, or Cc when a message has no To recipients.
+    var recipients: String { summary.to.isEmpty ? summary.cc : summary.to }
+    /// The sender for received mail, the recipients for outgoing mail.
+    var correspondent: String { isOutgoing ? recipients : from }
+    var sortCorrespondent: String { correspondent.lowercased() }
     var sortDate: Date { summary.sortDate }
     var sortSubject: String { summary.sortSubject }
     var sortFrom: String { summary.sortFrom }
@@ -110,9 +130,14 @@ struct MessageRow: Identifiable, Hashable {
 }
 
 enum SearchScope: String, CaseIterable, Identifiable {
-    case folder = "Deze map"
-    case all = "Alle mappen"
+    case folder, all
     var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .folder: return tr("This Folder", "Deze map")
+        case .all: return tr("All Folders", "Alle mappen")
+        }
+    }
 }
 
 @MainActor
@@ -173,7 +198,7 @@ final class ViewerModel: ObservableObject {
 
     func showOpenPanel() {
         let panel = NSOpenPanel()
-        panel.title = "Open PST- of OST-bestand"
+        panel.title = tr("Open PST or OST File", "Open PST- of OST-bestand")
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.allowedContentTypes = PSTTypes.all
@@ -194,7 +219,7 @@ final class ViewerModel: ObservableObject {
         }
         opening.insert(key)
         isLoading = true
-        loadingText = "\(url.lastPathComponent) openen…"
+        loadingText = tr("Opening \(url.lastPathComponent)…", "\(url.lastPathComponent) openen…")
         let showSystem = showSystemFolders
         Task.detached(priority: .userInitiated) {
             let accessing = url.startAccessingSecurityScopedResource()
@@ -217,7 +242,7 @@ final class ViewerModel: ObservableObject {
                 await MainActor.run {
                     self.opening.remove(key)
                     self.isLoading = false
-                    self.errorMessage = "Kan \(url.lastPathComponent) niet openen.\n\n\(error)"
+                    self.errorMessage = tr("Can't open \(url.lastPathComponent).", "Kan \(url.lastPathComponent) niet openen.") + "\n\n\(error)"
                 }
             }
         }
@@ -268,7 +293,7 @@ final class ViewerModel: ObservableObject {
     }
 
     func message(_ ref: MessageRef) throws -> Message {
-        guard let s = store(ref.store) else { throw PSTError.notFound("bestand") }
+        guard let s = store(ref.store) else { throw PSTError.notFound(tr("file", "bestand")) }
         return try s.file.message(nid: ref.nid)
     }
 
@@ -290,13 +315,16 @@ final class ViewerModel: ObservableObject {
         }
         guard let ref = selectedFolder, let s = store(ref.store) else { rows = []; return }
         let file = s.file
+        let outgoing = folderNode(ref)?.showsRecipients ?? false
         loadTask = Task.detached(priority: .userInitiated) {
             let summaries: [MessageSummary]
             do { summaries = try file.messages(in: ref.nid) } catch {
-                await MainActor.run { self.errorMessage = "Deze map kan niet volledig worden gelezen.\n\n\(error)" }
+                await MainActor.run {
+                    self.errorMessage = tr("This folder can't be read completely.", "Deze map kan niet volledig worden gelezen.") + "\n\n\(error)"
+                }
                 return
             }
-            let rows = summaries.map { MessageRow(ref: MessageRef(store: ref.store, nid: $0.nid), summary: $0) }
+            let rows = summaries.map { MessageRow(ref: MessageRef(store: ref.store, nid: $0.nid), summary: $0, isOutgoing: outgoing) }
                 .sorted { $0.sortDate > $1.sortDate }
             await MainActor.run {
                 guard self.selectedFolder == ref else { return }
@@ -338,7 +366,7 @@ final class ViewerModel: ObservableObject {
             var unreadableMessages = 0
 
             func matches(_ row: MessageRow, file: PSTFile) -> Bool {
-                let hay = (row.summary.subject + " " + row.summary.from + " " + row.summary.to).lowercased()
+                let hay = (row.summary.subject + " " + row.summary.from + " " + row.summary.to + " " + row.summary.cc).lowercased()
                 if terms.allSatisfy({ hay.contains($0) }) { return true }
                 guard bodies else { return false }
                 // A message whose text cannot be read might have matched: count it so the
@@ -375,7 +403,7 @@ final class ViewerModel: ObservableObject {
                             let ref = MessageRef(store: s.id, nid: sum.nid)
                             // Search folders list messages that also live in their real folder.
                             guard seen.insert(ref).inserted else { continue }
-                            let row = MessageRow(ref: ref, summary: sum, folderName: node.name)
+                            let row = MessageRow(ref: ref, summary: sum, folderName: node.name, isOutgoing: node.showsRecipients)
                             if matches(row, file: s.file) { results.append(row) }
                         }
                         let partial = results
@@ -389,12 +417,15 @@ final class ViewerModel: ObservableObject {
             let final = results.sorted { $0.sortDate > $1.sortDate }
             var problems: [String] = []
             if !unreadable.isEmpty {
-                problems.append("\(unreadable.count) map(pen) konden niet worden gelezen (\(unreadable.prefix(3).joined(separator: ", ")))")
+                let names = unreadable.prefix(3).joined(separator: ", ")
+                problems.append(tr("\(unreadable.count) folder(s) couldn't be read (\(names))",
+                                   "\(unreadable.count) map(pen) konden niet worden gelezen (\(names))"))
             }
             if unreadableMessages > 0 {
-                problems.append("van \(unreadableMessages) bericht(en) kon de tekst niet worden doorzocht")
+                problems.append(tr("the text of \(unreadableMessages) message(s) couldn't be searched",
+                                   "van \(unreadableMessages) bericht(en) kon de tekst niet worden doorzocht"))
             }
-            let warning = problems.isEmpty ? nil : "Onvolledig: " + problems.joined(separator: "; ") + "."
+            let warning = problems.isEmpty ? nil : tr("Incomplete: ", "Onvolledig: ") + problems.joined(separator: "; ") + "."
             await MainActor.run {
                 guard self.searchGeneration == generation else { return }
                 self.searchResults = final
@@ -417,13 +448,13 @@ final class ViewerModel: ObservableObject {
             return
         }
         let panel = NSOpenPanel()
-        panel.title = "Kies een map voor de .eml-bestanden"
+        panel.title = tr("Choose a Folder for the .eml Files", "Kies een map voor de .eml-bestanden")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Exporteer"
+        panel.prompt = tr("Export", "Exporteer")
         guard panel.runModal() == .OK, let dir = panel.url else { return }
-        runExport(count: refs.count, text: "Berichten exporteren…") { progress in
+        runExport(count: refs.count, text: tr("Exporting messages…", "Berichten exporteren…")) { progress in
             var used = Set<String>()
             var failures: [String] = []
             for (i, ref) in refs.enumerated() {
@@ -432,7 +463,7 @@ final class ViewerModel: ObservableObject {
                     let url = Self.uniqueURL(in: dir, base: EMLWriter.safeName(m.subject), ext: "eml", used: &used)
                     try EMLWriter.eml(for: m).write(to: url)
                 } catch {
-                    failures.append("bericht \(i + 1): \(error.localizedDescription)")
+                    failures.append(tr("message \(i + 1)", "bericht \(i + 1)") + ": \(error.localizedDescription)")
                 }
                 await progress(i + 1)
             }
@@ -442,12 +473,12 @@ final class ViewerModel: ObservableObject {
 
     /// Writes one message as .eml in the background (large attachments can take a while).
     func exportMessage(_ m: Message, to url: URL) {
-        runExport(count: 1, text: "Bericht exporteren…") { progress in
+        runExport(count: 1, text: tr("Exporting message…", "Bericht exporteren…")) { progress in
             var failures: [String] = []
             do {
                 try EMLWriter.eml(for: m).write(to: url)
             } catch {
-                failures.append("\(m.subject.isEmpty ? "(geen onderwerp)" : m.subject): \(error.localizedDescription)")
+                failures.append("\(m.subject.isEmpty ? tr("(no subject)", "(geen onderwerp)") : m.subject): \(error.localizedDescription)")
             }
             await progress(1)
             return failures
@@ -460,11 +491,11 @@ final class ViewerModel: ObservableObject {
         panel.nameFieldStringValue = EMLWriter.safeName(node.name) + ".mbox"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let file = s.file
-        runExport(count: node.folder.contentCount, text: "\(node.name) exporteren naar mbox…") { progress in
+        runExport(count: node.folder.contentCount, text: tr("Exporting \(node.name) to mbox…", "\(node.name) exporteren naar mbox…")) { progress in
             var failures: [String] = []
             do {
                 guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
-                    return ["Kan \(url.lastPathComponent) niet aanmaken."]
+                    return [tr("Can't create \(url.lastPathComponent).", "Kan \(url.lastPathComponent) niet aanmaken.")]
                 }
                 let handle = try FileHandle(forWritingTo: url)
                 defer { try? handle.close() }
@@ -474,7 +505,7 @@ final class ViewerModel: ObservableObject {
                         let m = try file.message(nid: sum.nid)
                         try handle.write(contentsOf: EMLWriter.mboxEntry(for: m))
                     } catch {
-                        failures.append("\(sum.subject.isEmpty ? "(geen onderwerp)" : sum.subject): \(error.localizedDescription)")
+                        failures.append("\(sum.subject.isEmpty ? tr("(no subject)", "(geen onderwerp)") : sum.subject): \(error.localizedDescription)")
                     }
                     await progress(i + 1)
                 }
@@ -488,21 +519,21 @@ final class ViewerModel: ObservableObject {
     func exportFolderAsEML(_ ref: FolderRef, recursive: Bool) {
         guard let s = store(ref.store), let node = folderNode(ref) else { return }
         let panel = NSOpenPanel()
-        panel.title = "Kies een doelmap"
+        panel.title = tr("Choose a Destination Folder", "Kies een doelmap")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Exporteer"
+        panel.prompt = tr("Export", "Exporteer")
         guard panel.runModal() == .OK, let base = panel.url else { return }
         let file = s.file
         let total = recursive ? node.folder.totalCount : node.folder.contentCount
-        runExport(count: total, text: "\(node.name) exporteren…") { progress in
+        runExport(count: total, text: tr("Exporting \(node.name)…", "\(node.name) exporteren…")) { progress in
             var done = 0
             var failures: [String] = []
             var usedDirs: [URL: Set<String>] = [:]
             func export(_ f: Folder, into dir: URL) async {
                 // Siblings like "A/B" and "A:B" sanitize to the same name: keep them apart.
-                let base = EMLWriter.safeName(f.name.isEmpty ? "map" : f.name)
+                let base = EMLWriter.safeName(f.name.isEmpty ? tr("folder", "map") : f.name)
                 var name = base
                 var n = 2
                 while usedDirs[dir, default: []].contains(name.lowercased())
@@ -515,13 +546,13 @@ final class ViewerModel: ObservableObject {
                 do {
                     try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
                 } catch {
-                    failures.append("map \(f.name): \(error.localizedDescription)")
+                    failures.append(tr("folder", "map") + " \(f.name): \(error.localizedDescription)")
                     return
                 }
                 var used = Set<String>()
                 let summaries: [MessageSummary]
                 do { summaries = try file.messages(in: f.nid) } catch {
-                    failures.append("map \(f.name): \(error.localizedDescription)")
+                    failures.append(tr("folder", "map") + " \(f.name): \(error.localizedDescription)")
                     summaries = []
                 }
                 for sum in summaries {
@@ -530,7 +561,7 @@ final class ViewerModel: ObservableObject {
                         let url = Self.uniqueURL(in: target, base: EMLWriter.safeName(m.subject), ext: "eml", used: &used)
                         try EMLWriter.eml(for: m).write(to: url)
                     } catch {
-                        failures.append("\(f.name) / \(sum.subject.isEmpty ? "(geen onderwerp)" : sum.subject): \(error.localizedDescription)")
+                        failures.append("\(f.name) / \(sum.subject.isEmpty ? tr("(no subject)", "(geen onderwerp)") : sum.subject): \(error.localizedDescription)")
                     }
                     done += 1
                     await progress(done)
@@ -558,9 +589,9 @@ final class ViewerModel: ObservableObject {
             await MainActor.run {
                 self.exportProgress = nil
                 if !failures.isEmpty {
-                    var msg = "\(failures.count) item(s) konden niet worden geëxporteerd:\n\n"
+                    var msg = tr("\(failures.count) item(s) couldn't be exported:", "\(failures.count) item(s) konden niet worden geëxporteerd:") + "\n\n"
                     msg += failures.prefix(15).map { "• " + $0 }.joined(separator: "\n")
-                    if failures.count > 15 { msg += "\n… en nog \(failures.count - 15)" }
+                    if failures.count > 15 { msg += "\n" + tr("… and \(failures.count - 15) more", "… en nog \(failures.count - 15)") }
                     self.errorMessage = msg
                 }
             }

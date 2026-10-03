@@ -14,7 +14,7 @@ struct MessageContainerView: View {
             if let message {
                 MessageDetailView(message: message, ref: ref)
             } else if let error {
-                EmptyStateView(symbol: "exclamationmark.triangle", title: "Kan bericht niet lezen", subtitle: error)
+                EmptyStateView(symbol: "exclamationmark.triangle", title: tr("Can't Read Message", "Kan bericht niet lezen"), subtitle: error)
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -40,11 +40,26 @@ struct MessageContainerView: View {
 }
 
 enum DetailTab: String, CaseIterable, Identifiable {
-    case message = "Bericht"
-    case text = "Platte tekst"
-    case headers = "Kopteksten"
-    case properties = "Eigenschappen"
+    case message, text, headers, properties
     var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .message: return tr("Message", "Bericht")
+        case .text: return tr("Plain Text", "Platte tekst")
+        case .headers: return tr("Headers", "Kopteksten")
+        case .properties: return tr("Properties", "Eigenschappen")
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .message: return "envelope"
+        case .text: return "doc.plaintext"
+        case .headers: return "list.bullet.rectangle"
+        case .properties: return "tablecells"
+        }
+    }
 }
 
 struct MessageDetailView: View {
@@ -52,7 +67,7 @@ struct MessageDetailView: View {
     /// nil for embedded messages.
     let ref: MessageRef?
     @EnvironmentObject var model: ViewerModel
-    @AppStorage("detailTab") private var tab: DetailTab = .message
+    @AppStorage("detailView") private var tab: DetailTab = .message
     @State private var embedded: EmbeddedItem?
 
     struct EmbeddedItem: Identifiable {
@@ -77,44 +92,22 @@ struct MessageDetailView: View {
                 case .text: RichTextView(text: .plain(message.plainBody))
                 case .headers:
                     RichTextView(text: .plain(message.transportHeaders.isEmpty
-                        ? "Dit bericht bevat geen internet-kopteksten.\n(Berichten die in Outlook zijn aangemaakt of via Exchange zijn ontvangen hebben die vaak niet.)"
+                        ? tr("This message has no internet headers.\n(Messages created in Outlook or received through Exchange often don't.)",
+                             "Dit bericht bevat geen internet-kopteksten.\n(Berichten die in Outlook zijn aangemaakt of via Exchange zijn ontvangen hebben die vaak niet.)")
                         : message.transportHeaders), monospaced: true)
                 case .properties: PropertiesView(message: message)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Picker("Weergave", selection: $tab) {
-                    ForEach(DetailTab.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .help("Weergave")
-
-                Button {
-                    MessagePrinter.print(message)
-                } label: {
-                    Label("Afdrukken", systemImage: "printer")
-                }
-                .keyboardShortcut("p")
-                .help("Druk dit bericht af of bewaar het als PDF")
-
-                Button {
-                    saveEML()
-                } label: {
-                    Label("Exporteer .eml", systemImage: "square.and.arrow.up")
-                }
-                .help("Bewaar dit bericht als .eml (te openen in Apple Mail)")
-            }
-        }
+        .modifier(DetailToolbar(tab: $tab, print: { MessagePrinter.print(message) }, export: saveEML))
         .sheet(item: $embedded) { item in
             VStack(spacing: 0) {
                 MessageDetailView(message: item.message, ref: nil)
                 Divider()
                 HStack {
                     Spacer()
-                    Button("Sluiten") { embedded = nil }
+                    Button(tr("Close", "Sluiten")) { embedded = nil }
                         .keyboardShortcut(.cancelAction)
                 }
                 .padding(10)
@@ -133,6 +126,73 @@ struct MessageDetailView: View {
     }
 }
 
+// MARK: - Toolbar
+
+/// Icon buttons grouped like Mail's toolbar: the view switcher, then the actions.
+/// On macOS 26 each group gets its own Liquid Glass capsule.
+struct DetailToolbar: ViewModifier {
+    @Binding var tab: DetailTab
+    let print: @MainActor () -> Void
+    let export: @MainActor () -> Void
+
+    #if compiler(>=6.2)
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.toolbar {
+                viewPicker
+                ToolbarSpacer(.fixed, placement: .primaryAction)
+                actions
+            }
+        } else {
+            content.toolbar {
+                viewPicker
+                actions
+            }
+        }
+    }
+    #else
+    func body(content: Content) -> some View {
+        content.toolbar {
+            viewPicker
+            actions
+        }
+    }
+    #endif
+
+    @ToolbarContentBuilder
+    var viewPicker: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Picker(tr("View", "Weergave"), selection: $tab) {
+                ForEach(DetailTab.allCases) { t in
+                    Image(systemName: t.symbol)
+                        .accessibilityLabel(t.title)
+                        .help(t.title)
+                        .tag(t)
+                }
+            }
+            .pickerStyle(.segmented)
+            .help(tr("View: \(tab.title)", "Weergave: \(tab.title)"))
+        }
+    }
+
+    @ToolbarContentBuilder
+    var actions: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button(action: print) {
+                Label(tr("Print", "Afdrukken"), systemImage: "printer")
+            }
+            .keyboardShortcut("p")
+            .help(tr("Print this message or save it as PDF", "Druk dit bericht af of bewaar het als PDF"))
+
+            Button(action: export) {
+                Label(tr("Export .eml", "Exporteer .eml"), systemImage: "square.and.arrow.up")
+            }
+            .help(tr("Save this message as .eml (opens in Apple Mail)", "Bewaar dit bericht als .eml (te openen in Apple Mail)"))
+        }
+    }
+}
+
 // MARK: - Header
 
 struct MessageHeaderView: View {
@@ -140,7 +200,7 @@ struct MessageHeaderView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(message.subject.isEmpty ? "(geen onderwerp)" : message.subject)
+            Text(message.subject.isEmpty ? tr("(no subject)", "(geen onderwerp)") : message.subject)
                 .font(.title2.weight(.semibold))
                 .textSelection(.enabled)
                 .lineLimit(3)
@@ -149,7 +209,7 @@ struct MessageHeaderView: View {
                 Avatar(name: message.fromName.isEmpty ? message.fromEmail : message.fromName)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text(message.from.isEmpty ? "Onbekende afzender" : message.from)
+                        Text(message.from.isEmpty ? tr("Unknown sender", "Onbekende afzender") : message.from)
                             .font(.headline)
                             .textSelection(.enabled)
                         Spacer()
@@ -160,11 +220,11 @@ struct MessageHeaderView: View {
                                 .textSelection(.enabled)
                         }
                     }
-                    addressLine("Aan", message.to)
+                    addressLine(tr("To", "Aan"), message.to)
                     addressLine("Cc", message.cc)
                     addressLine("Bcc", message.bcc)
                     if message.importance == 2 {
-                        Label("Hoge prioriteit", systemImage: "exclamationmark.circle")
+                        Label(tr("High priority", "Hoge prioriteit"), systemImage: "exclamationmark.circle")
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
@@ -235,11 +295,14 @@ struct Avatar: View {
 struct BodyView: View {
     let message: Message
     @AppStorage("loadRemoteContent") private var loadRemoteContent = false
+    @AppStorage(AppSettings.darkMessagesKey) private var darkMessages = true
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         switch message.body {
         case .html(let html):
-            HTMLView(html: HTMLPreparer.prepare(html, message: message), allowRemote: loadRemoteContent)
+            HTMLView(html: HTMLPreparer.prepare(html, message: message, dark: darkMessages && colorScheme == .dark),
+                     allowRemote: loadRemoteContent)
         case .rtf(let data):
             RichTextView(text: .rtf(data))
         case .text(let text):
@@ -254,7 +317,9 @@ struct BodyView: View {
 
 enum HTMLPreparer {
     /// Inlines `cid:` images from the attachments and adds a base style.
-    static func prepare(_ html: String, message: Message) -> String {
+    /// With `dark`, the page is shown with inverted lightness (hues and images keep their colours),
+    /// so mail with hard-coded black-on-white colours still reads well in dark mode.
+    static func prepare(_ html: String, message: Message, dark: Bool = false) -> String {
         var out = html
         if out.range(of: "cid:", options: .caseInsensitive) != nil {
             for att in message.attachments where !att.contentID.isEmpty {
@@ -269,10 +334,17 @@ enum HTMLPreparer {
                 out = regex.stringByReplacingMatches(in: out, range: range, withTemplate: replacement)
             }
         }
-        let style = """
+        var style = """
         <meta name="color-scheme" content="light">
         <style>html{background:#fff;} body{font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;word-wrap:break-word;margin:14px;} img{max-width:100%;height:auto;}</style>
         """
+        if dark {
+            // #e3e3e3 inverts to #1c1c1c, close to the window background in dark mode.
+            style += """
+            <style>html{background:#1c1c1c;} body{background:#e3e3e3;filter:invert(1) hue-rotate(180deg);}
+            img,video,picture,svg,canvas,iframe,object,embed{filter:invert(1) hue-rotate(180deg);}</style>
+            """
+        }
         if let r = out.range(of: "<head>", options: .caseInsensitive) {
             out.insert(contentsOf: style, at: r.upperBound)
         } else {
@@ -299,20 +371,20 @@ enum MessagePrinter {
         let doc = NSMutableAttributedString()
         let bold = NSFont.boldSystemFont(ofSize: 11)
         let regular = NSFont.systemFont(ofSize: 11)
-        doc.append(NSAttributedString(string: (message.subject.isEmpty ? "(geen onderwerp)" : message.subject) + "\n",
+        doc.append(NSAttributedString(string: (message.subject.isEmpty ? tr("(no subject)", "(geen onderwerp)") : message.subject) + "\n",
                                       attributes: [.font: NSFont.boldSystemFont(ofSize: 15)]))
         func line(_ label: String, _ value: String) {
             guard !value.isEmpty else { return }
             doc.append(NSAttributedString(string: label + ": ", attributes: [.font: bold]))
             doc.append(NSAttributedString(string: value + "\n", attributes: [.font: regular]))
         }
-        line("Van", message.from)
-        line("Aan", message.to)
+        line(tr("From", "Van"), message.from)
+        line(tr("To", "Aan"), message.to)
         line("Cc", message.cc)
-        if let d = message.date { line("Datum", Format.longDate.string(from: d)) }
+        if let d = message.date { line(tr("Date", "Datum"), Format.longDate.string(from: d)) }
         for (k, v) in message.details { line(k, v) }
         let names = message.attachments.filter { !$0.isHidden }.map(\.filename)
-        line("Bijlagen", names.joined(separator: ", "))
+        line(tr("Attachments", "Bijlagen"), names.joined(separator: ", "))
         doc.append(NSAttributedString(string: "\n"))
 
         switch message.body {

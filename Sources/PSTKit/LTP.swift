@@ -28,7 +28,7 @@ struct Heap {
         self.node = node
         pages = try node.ndb.dataBlocks(node.bidData)
         guard let first = pages.first, first.count >= 12, first.u8(2) == 0xEC else {
-            throw PSTError.corrupt("ongeldige heap (nid 0x\(String(node.nid, radix: 16)))")
+            throw PSTError.corrupt(tr("invalid heap (nid 0x\(String(node.nid, radix: 16)))", "ongeldige heap (nid 0x\(String(node.nid, radix: 16)))"))
         }
         clientSig = first.u8(3)
         userRoot = first.u32(4)
@@ -57,10 +57,10 @@ struct Heap {
         if hnid == 0 { return [] }
         // hnid 0 means "empty"; a nonzero reference that resolves to nothing is corruption.
         if hnid & 0x1F == 0 {
-            guard let bytes = item(hnid) else { throw PSTError.corrupt("heap-verwijzing 0x\(String(hnid, radix: 16)) ontbreekt") }
+            guard let bytes = item(hnid) else { throw PSTError.corrupt(tr("heap reference 0x\(String(hnid, radix: 16)) is missing", "heap-verwijzing 0x\(String(hnid, radix: 16)) ontbreekt")) }
             return bytes
         }
-        guard let sub = try node.subnode(hnid) else { throw PSTError.corrupt("subnode 0x\(String(hnid, radix: 16)) ontbreekt") }
+        guard let sub = try node.subnode(hnid) else { throw PSTError.corrupt(tr("subnode 0x\(String(hnid, radix: 16)) is missing", "subnode 0x\(String(hnid, radix: 16)) ontbreekt")) }
         return try node.ndb.dataStream(sub.bidData)
     }
 }
@@ -77,7 +77,7 @@ struct BTH {
     init(heap: Heap, header: UInt32) throws {
         self.heap = heap
         guard let h = heap.item(header), h.count >= 8, h.u8(0) == 0xB5 else {
-            throw PSTError.corrupt("ongeldige BTH-header")
+            throw PSTError.corrupt(tr("invalid BTH header", "ongeldige BTH-header"))
         }
         keySize = Int(h.u8(1))
         entrySize = Int(h.u8(2))
@@ -122,7 +122,7 @@ public struct PropertyContext {
 
     init(_ node: NodeRef) throws {
         heap = try Heap(node)
-        guard heap.clientSig == 0xBC else { throw PSTError.corrupt("geen property context") }
+        guard heap.clientSig == 0xBC else { throw PSTError.corrupt(tr("not a property context", "geen property context")) }
         let bth = try BTH(heap: heap, header: heap.userRoot)
         var e: [UInt16: (type: UInt16, raw: UInt32)] = [:]
         for r in bth.records() where r.key.count == 2 && r.data.count >= 6 {
@@ -177,7 +177,7 @@ struct TableContext {
     init(_ node: NodeRef) throws {
         heap = try Heap(node)
         guard heap.clientSig == 0x7C, let info = heap.item(heap.userRoot), info.u8(0) == 0x7C else {
-            throw PSTError.corrupt("geen table context")
+            throw PSTError.corrupt(tr("not a table context", "geen table context"))
         }
         let cCols = Int(info.u8(1))
         cebOffset = Int(info.u16(6))
@@ -193,12 +193,12 @@ struct TableContext {
         if hnidRows == 0 || rowSize == 0 {
             rowBlocks = []
         } else if hnidRows & 0x1F == 0 {
-            guard let rows = heap.item(hnidRows) else { throw PSTError.corrupt("tabelrijen ontbreken") }
+            guard let rows = heap.item(hnidRows) else { throw PSTError.corrupt(tr("table rows are missing", "tabelrijen ontbreken")) }
             rowBlocks = [rows]
         } else if let sub = try node.subnode(hnidRows) {
             rowBlocks = try node.ndb.dataBlocks(sub.bidData)
         } else {
-            throw PSTError.corrupt("tabelrijen ontbreken")
+            throw PSTError.corrupt(tr("table rows are missing", "tabelrijen ontbreken"))
         }
         if rowSize > 0, let first = rowBlocks.first {
             rowsPerBlock = Swift.max(1, rowBlocks.count > 1 ? first.count / rowSize : Swift.max(first.count / rowSize, 1))

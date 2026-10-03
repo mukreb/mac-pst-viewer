@@ -3,7 +3,12 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>nl</string>
+	<string>en</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>nl</string>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>PSTViewer</string>
 	<key>CFBundleIconFile</key>
@@ -57,7 +62,7 @@
 			<key>UTTypeIdentifier</key>
 			<string>com.microsoft.outlook.pst</string>
 			<key>UTTypeDescription</key>
-			<string>Outlook-gegevensbestand</string>
+			<string>Outlook Data File</string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.data</string>
@@ -74,7 +79,7 @@
 			<key>UTTypeIdentifier</key>
 			<string>com.microsoft.outlook.ost</string>
 			<key>UTTypeDescription</key>
-			<string>Outlook offline-gegevensbestand</string>
+			<string>Outlook Offline Data File</string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.data</string>
