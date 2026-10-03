@@ -488,6 +488,7 @@ final class ViewerModel: ObservableObject {
         let base = searchResults != nil && !query.isEmpty ? query : (folderNode(selectedFolder)?.name ?? tr("Messages", "Berichten"))
         panel.nameFieldStringValue = EMLWriter.safeName(base) + ".mbox"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard !overwritesOpenArchive(url) else { return }
         let selected = Set(refs)
         let folderName = folderNode(selectedFolder)?.name ?? ""
         let items: [(ref: MessageRef, location: String)] = visibleRows
@@ -521,6 +522,15 @@ final class ViewerModel: ObservableObject {
         }
     }
 
+    /// Refuses (with a message) a destination that is one of the open archives or lies inside an
+    /// open mail folder: creating it would truncate or change mail that is still being read.
+    private func overwritesOpenArchive(_ url: URL) -> Bool {
+        guard MboxExport.overlaps(url, sources: stores.map(\.file.url)) else { return false }
+        errorMessage = tr("\(url.lastPathComponent) is an open archive or inside one. Choose another name or folder.",
+                          "\(url.lastPathComponent) is een geopend archief of staat daarin. Kies een andere naam of map.")
+        return true
+    }
+
     /// Writes one message as .eml in the background (large attachments can take a while).
     func exportMessage(_ m: Message, to url: URL) {
         runExport(count: 1, text: tr("Exporting message…", "Bericht exporteren…")) { progress in
@@ -540,6 +550,7 @@ final class ViewerModel: ObservableObject {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = EMLWriter.safeName(node.name) + ".mbox"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard !overwritesOpenArchive(url) else { return }
         let file = s.file
         runExport(count: node.folder.contentCount, text: tr("Exporting \(node.name) to mbox…", "\(node.name) exporteren naar mbox…")) { progress in
             var failures: [String] = []

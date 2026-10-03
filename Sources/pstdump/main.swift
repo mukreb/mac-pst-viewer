@@ -56,12 +56,9 @@ func exportMbox() -> Never {
     }
     let out = URL(fileURLWithPath: output).standardizedFileURL
     // Never write over (or into) an archive that is being read.
-    for src in sources {
-        let s = URL(fileURLWithPath: src).standardizedFileURL.path
-        if out.path == s || out.path.hasPrefix(s.hasSuffix("/") ? s : s + "/") {
-            FileHandle.standardError.write(Data("The output file can't be inside a source: \(src)\n".utf8))
-            exit(1)
-        }
+    if MboxExport.overlaps(out, sources: sources.map { URL(fileURLWithPath: $0) }) {
+        FileHandle.standardError.write(Data("The output file can't be one of the sources or inside one\n".utf8))
+        exit(1)
     }
     do {
         let stores = try sources.map { try MailStores.open(URL(fileURLWithPath: $0)) }

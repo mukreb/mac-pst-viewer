@@ -53,6 +53,16 @@ public enum MboxExport {
         public var failures: [String] = []
     }
 
+    /// True when `output` is one of the `sources` or lies inside a source folder, so writing it
+    /// would overwrite or change an archive that is being read.
+    public static func overlaps(_ output: URL, sources: [URL]) -> Bool {
+        let out = output.standardizedFileURL.resolvingSymlinksInPath().path
+        return sources.contains { src in
+            let s = src.standardizedFileURL.resolvingSymlinksInPath().path
+            return out == s || out.hasPrefix(s.hasSuffix("/") ? s : s + "/")
+        }
+    }
+
     /// Exports the messages of `stores` that pass `filter` to `url` (overwritten, or appended to
     /// with `append`). Every message gets an `X-Folder` header with its archive and folder.
     /// Messages listed in several folders (search folders) or archives are written once.
@@ -65,9 +75,14 @@ public enum MboxExport {
                 throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])
             }
         }
-        let handle = try FileHandle(forWritingTo: url)
+        let handle = try FileHandle(forUpdating: url)
         defer { try? handle.close() }
-        try handle.seekToEnd()
+        // A file that doesn't end in a newline would glue the next "From " line to its last line.
+        let end = try handle.seekToEnd()
+        if end > 0 {
+            try handle.seek(toOffset: end - 1)
+            if handle.readData(ofLength: 1) != Data([0x0A]) { try handle.write(contentsOf: Data([0x0A, 0x0A])) }
+        }
 
         var report = Report()
         var seenMessageIDs = Set<String>()
@@ -93,11 +108,13 @@ public enum MboxExport {
                             let m = try store.message(nid: s.nid)
                             guard filter.matches(s) || filter.matches(m, summary: s) else { continue }
                             let id = m.messageID.trimmingCharacters(in: .whitespaces)
-                            if !id.isEmpty, !seenMessageIDs.insert(id).inserted {
+                            if !id.isEmpty, seenMessageIDs.contains(id) {
                                 report.duplicates += 1
                                 continue
                             }
                             try handle.write(contentsOf: EMLWriter.mboxEntry(for: m, headers: [("X-Folder", location)]))
+                            // Only now: a copy that failed to export must not hide a readable copy elsewhere.
+                            if !id.isEmpty { seenMessageIDs.insert(id) }
                             report.written += 1
                         } catch {
                             let subject = s.subject.isEmpty ? "(no subject)" : s.subject

@@ -73,4 +73,21 @@ final class MailExportTests: XCTestCase {
         try MboxExport.export(stores: [source], filter: MailFilter(folder: "klant"), to: out)
         XCTAssertEqual(try exported(out).subjects, ["Project kickoff"])
     }
+
+    func testAppendToFileWithoutTrailingNewline() throws {
+        let out = temporaryMbox()
+        try Data("From a@b.c Thu Jan 01 00:00:00 1998\nSubject: Existing\n\nlast line without newline".utf8).write(to: out)
+        let source = try MailStores.open(try fixtureURL("netscape"))
+        try MboxExport.export(stores: [source], filter: MailFilter(folder: "klant"), to: out, append: true)
+        XCTAssertEqual(try exported(out).subjects, ["Existing", "Project kickoff"])
+    }
+
+    func testOverlapWithSources() throws {
+        let netscape = try fixtureURL("netscape")
+        let pst = try fixtureURL("tika-testPST.pst")
+        XCTAssertTrue(MboxExport.overlaps(pst, sources: [netscape, pst]))
+        XCTAssertTrue(MboxExport.overlaps(netscape.appendingPathComponent("Inbox"), sources: [netscape]))
+        XCTAssertTrue(MboxExport.overlaps(netscape.appendingPathComponent("../netscape/x.mbox"), sources: [netscape]))
+        XCTAssertFalse(MboxExport.overlaps(netscape.deletingLastPathComponent().appendingPathComponent("netscape.mbox"), sources: [netscape]))
+    }
 }
