@@ -53,14 +53,40 @@ public enum MboxExport {
         public var failures: [String] = []
     }
 
-    /// True when `output` is one of the `sources` or lies inside a source folder, so writing it
-    /// would overwrite or change an archive that is being read.
+    public enum ExportError: Error, CustomStringConvertible {
+        case overlapsSource(String)
+        case classicLineEndings(String)
+
+        public var description: String {
+            switch self {
+            case .overlapsSource(let p):
+                return tr("\(p) is one of the archives being exported, or inside one.",
+                          "\(p) is een van de archieven die worden geëxporteerd, of staat daarin.")
+            case .classicLineEndings(let p):
+                return tr("Can't append to \(p): it uses classic Mac line endings (CR). Export to a new file instead.",
+                          "Kan niet toevoegen aan \(p): het gebruikt klassieke Mac-regeleinden (CR). Exporteer naar een nieuw bestand.")
+            }
+        }
+    }
+
+    /// True when `output` is one of the `sources` (also through a symbolic or hard link) or lies
+    /// inside a source folder, so writing it would overwrite or change an archive that is being read.
     public static func overlaps(_ output: URL, sources: [URL]) -> Bool {
         let out = output.standardizedFileURL.resolvingSymlinksInPath().path
+        let outID = fileIdentity(out)
         return sources.contains { src in
             let s = src.standardizedFileURL.resolvingSymlinksInPath().path
-            return out == s || out.hasPrefix(s.hasSuffix("/") ? s : s + "/")
+            if out == s || out.hasPrefix(s.hasSuffix("/") ? s : s + "/") { return true }
+            return outID != nil && outID == fileIdentity(s)
         }
+    }
+
+    /// Device and inode of an existing file, so two names for the same file compare equal.
+    static func fileIdentity(_ path: String) -> [Int]? {
+        guard let a = try? FileManager.default.attributesOfItem(atPath: path),
+              let dev = (a[.systemNumber] as? NSNumber)?.intValue,
+              let ino = (a[.systemFileNumber] as? NSNumber)?.intValue else { return nil }
+        return [dev, ino]
     }
 
     /// Exports the messages of `stores` that pass `filter` to `url` (overwritten, or appended to
@@ -70,6 +96,13 @@ public enum MboxExport {
     public static func export(stores: [any MailStore], filter: MailFilter, to url: URL, append: Bool = false,
                               progress: ((Report) -> Void)? = nil) throws -> Report {
         let fm = FileManager.default
+        if overlaps(url, sources: stores.map(\.url)) { throw ExportError.overlapsSource(url.path) }
+        if append, let existing = FileHandle(forReadingAtPath: url.path) {
+            // Entries are written with LF; mixing them into a CR-only file would hide messages.
+            let sample = existing.readData(ofLength: 65536)
+            try? existing.close()
+            if sample.contains(0x0D) && !sample.contains(0x0A) { throw ExportError.classicLineEndings(url.path) }
+        }
         if !append || !fm.fileExists(atPath: url.path) {
             guard fm.createFile(atPath: url.path, contents: nil) else {
                 throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])

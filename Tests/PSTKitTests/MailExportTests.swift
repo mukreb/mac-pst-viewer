@@ -90,4 +90,27 @@ final class MailExportTests: XCTestCase {
         XCTAssertTrue(MboxExport.overlaps(netscape.appendingPathComponent("../netscape/x.mbox"), sources: [netscape]))
         XCTAssertFalse(MboxExport.overlaps(netscape.deletingLastPathComponent().appendingPathComponent("netscape.mbox"), sources: [netscape]))
     }
+
+    func testHardLinkedSourceIsRefused() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("export-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+        let source = dir.appendingPathComponent("Inbox")
+        try FileManager.default.copyItem(at: try fixtureURL("netscape/Inbox"), to: source)
+        let alias = dir.appendingPathComponent("alias.mbox")
+        try FileManager.default.linkItem(at: source, to: alias)
+        let before = try Data(contentsOf: source)
+        XCTAssertTrue(MboxExport.overlaps(alias, sources: [source]))
+        XCTAssertThrowsError(try MboxExport.export(stores: [try MailStores.open(source)], filter: MailFilter(), to: alias, append: true))
+        XCTAssertEqual(try Data(contentsOf: source), before)
+    }
+
+    func testAppendToClassicMacFileIsRefused() throws {
+        let out = temporaryMbox()
+        let original = Data("From a@b.c Thu Jan 01 00:00:00 1998\rSubject: Existing\r\rtext\r".utf8)
+        try original.write(to: out)
+        let source = try MailStores.open(try fixtureURL("netscape"))
+        XCTAssertThrowsError(try MboxExport.export(stores: [source], filter: MailFilter(), to: out, append: true))
+        XCTAssertEqual(try Data(contentsOf: out), original)
+    }
 }
