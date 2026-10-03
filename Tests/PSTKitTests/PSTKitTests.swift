@@ -209,6 +209,12 @@ final class PSTKitTests: XCTestCase {
         XCTAssertNotNil(RTF.decompress(bytes))
     }
 
+    func testHeaderInjectionIsFlattened() {
+        XCTAssertEqual(EMLWriter.flat("<id@x>\r\nBcc: evil@x"), "<id@x>  Bcc: evil@x")
+        XCTAssertEqual(EMLWriter.addrSpec("Name <a@b.c>\r\nX: y"), "a@b.c")
+        XCTAssertFalse(EMLWriter.address(name: "A\r\nB", email: "a@b.c\r\nX: 1").contains("\n"))
+    }
+
     func testSafeName() {
         XCTAssertEqual(EMLWriter.safeName(".."), "__")
         XCTAssertEqual(EMLWriter.safeName("."), "_")

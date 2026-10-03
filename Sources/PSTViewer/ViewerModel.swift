@@ -438,8 +438,19 @@ final class ViewerModel: ObservableObject {
         runExport(count: total, text: "\(node.name) exporteren…") { progress in
             var done = 0
             var failures: [String] = []
+            var usedDirs: [URL: Set<String>] = [:]
             func export(_ f: Folder, into dir: URL) async {
-                let target = dir.appendingPathComponent(EMLWriter.safeName(f.name.isEmpty ? "map" : f.name), isDirectory: true)
+                // Siblings like "A/B" and "A:B" sanitize to the same name: keep them apart.
+                let base = EMLWriter.safeName(f.name.isEmpty ? "map" : f.name)
+                var name = base
+                var n = 2
+                while usedDirs[dir, default: []].contains(name.lowercased())
+                        || FileManager.default.fileExists(atPath: dir.appendingPathComponent(name).path) {
+                    name = "\(base) (\(n))"
+                    n += 1
+                }
+                usedDirs[dir, default: []].insert(name.lowercased())
+                let target = dir.appendingPathComponent(name, isDirectory: true)
                 do {
                     try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
                 } catch {

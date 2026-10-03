@@ -216,11 +216,14 @@ public final class PSTFile: @unchecked Sendable {
         case .binary(let b)?: return Data(b)
         case .object(let nid, _)?:
             // OLE / embedded object stored in a subnode.
-            if let sub = try attachment.node.subnode(nid) {
-                return Data(try ndb.dataStream(sub.bidData))
+            guard let sub = try attachment.node.subnode(nid) else {
+                throw PSTError.corrupt("gegevens van bijlage '\(attachment.filename)' ontbreken")
             }
-            return Data()
-        default: return Data()
+            return Data(try ndb.dataStream(sub.bidData))
+        default:
+            // By-reference attachments (methods 2, 3, 4 and 7) only point to a file elsewhere.
+            if [2, 3, 4, 7].contains(attachment.method) { return Data() }
+            throw PSTError.corrupt("gegevens van bijlage '\(attachment.filename)' ontbreken")
         }
     }
 

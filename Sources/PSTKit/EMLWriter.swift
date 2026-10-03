@@ -18,8 +18,9 @@ public enum EMLWriter {
         }
         out += header("Subject", m.subject)
         if let d = m.sentDate ?? m.date { out += "Date: \(rfc2822(d))\r\n" }
-        if !m.messageID.isEmpty { out += "Message-ID: \(m.messageID)\r\n" }
-        out += "X-PST-Message-Class: \(m.messageClass)\r\n"
+        let messageID = flat(m.messageID)
+        if !messageID.isEmpty { out += "Message-ID: \(messageID)\r\n" }
+        out += "X-PST-Message-Class: \(flat(m.messageClass))\r\n"
         out += "MIME-Version: 1.0\r\n"
 
         let text = m.plainBody
@@ -79,7 +80,8 @@ public enum EMLWriter {
         df.locale = Locale(identifier: "en_US_POSIX")
         df.timeZone = TimeZone(identifier: "UTC")
         df.dateFormat = "EEE MMM dd HH:mm:ss yyyy"
-        let sender = m.fromEmail.contains("@") ? m.fromEmail.replacingOccurrences(of: " ", with: "") : "MAILER-DAEMON"
+        let email = addrSpec(m.fromEmail)
+        let sender = email.contains("@") ? email : "MAILER-DAEMON"
         var out = "From \(sender) \(df.string(from: m.date ?? Date(timeIntervalSince1970: 0)))\n"
         for line in eml.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n") {
             var l = line
@@ -109,18 +111,32 @@ public enum EMLWriter {
     }
 
     static func header(_ name: String, _ value: String) -> String {
-        "\(name): \(encodeWord(value.replacingOccurrences(of: "\r", with: " ").replacingOccurrences(of: "\n", with: " ")))\r\n"
+        "\(name): \(encodeWord(flat(value)))\r\n"
     }
 
     /// Formats a mailbox, encoding only the display name (RFC 5322 / 2047).
-    static func address(name: String, email rawEmail: String) -> String {
-        var email = rawEmail.trimmingCharacters(in: .whitespaces)
+    /// Replaces line breaks (and other control characters) so a value can't break out of its header.
+    static func flat(_ s: String) -> String {
+        String(String.UnicodeScalarView(s.unicodeScalars.map { CharacterSet.controlCharacters.contains($0) ? " " : $0 }))
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    /// The bare `user@host` part of an address value, without whitespace, brackets or control characters.
+    static func addrSpec(_ raw: String) -> String {
+        var email = raw
         // Header-derived values look like `Name <user@host>`.
         if let lt = email.lastIndex(of: "<"), let gt = email.lastIndex(of: ">"), lt < gt {
             email = String(email[email.index(after: lt)..<gt])
         }
-        let cleanName = name.replacingOccurrences(of: "\r", with: " ").replacingOccurrences(of: "\n", with: " ")
-            .trimmingCharacters(in: CharacterSet(charactersIn: " '\""))
+        return String(email.unicodeScalars.filter {
+            !CharacterSet.whitespacesAndNewlines.contains($0) && !CharacterSet.controlCharacters.contains($0)
+                && $0 != "<" && $0 != ">" && $0 != "\"" && $0 != ","
+        }.map(Character.init))
+    }
+
+    static func address(name: String, email rawEmail: String) -> String {
+        let email = addrSpec(rawEmail)
+        let cleanName = flat(name).trimmingCharacters(in: CharacterSet(charactersIn: " '\""))
         guard email.contains("@") else { return encodeWord(cleanName.isEmpty ? email : cleanName) }
         if cleanName.isEmpty || cleanName == email { return email }
         let displayName: String
