@@ -93,6 +93,14 @@ struct MessageDetailView: View {
                 .help("Weergave")
 
                 Button {
+                    MessagePrinter.print(message)
+                } label: {
+                    Label("Afdrukken", systemImage: "printer")
+                }
+                .keyboardShortcut("p")
+                .help("Druk dit bericht af of bewaar het als PDF")
+
+                Button {
                     saveEML()
                 } label: {
                     Label("Exporteer .eml", systemImage: "square.and.arrow.up")
@@ -275,5 +283,58 @@ enum HTMLPreparer {
         case "bmp": return "image/bmp"
         default: return "image/jpeg"
         }
+    }
+}
+
+// MARK: - Printing
+
+enum MessagePrinter {
+    @MainActor
+    static func print(_ message: Message) {
+        let doc = NSMutableAttributedString()
+        let bold = NSFont.boldSystemFont(ofSize: 11)
+        let regular = NSFont.systemFont(ofSize: 11)
+        doc.append(NSAttributedString(string: (message.subject.isEmpty ? "(geen onderwerp)" : message.subject) + "\n",
+                                      attributes: [.font: NSFont.boldSystemFont(ofSize: 15)]))
+        func line(_ label: String, _ value: String) {
+            guard !value.isEmpty else { return }
+            doc.append(NSAttributedString(string: label + ": ", attributes: [.font: bold]))
+            doc.append(NSAttributedString(string: value + "\n", attributes: [.font: regular]))
+        }
+        line("Van", message.from)
+        line("Aan", message.to)
+        line("Cc", message.cc)
+        if let d = message.date { line("Datum", Format.longDate.string(from: d)) }
+        for (k, v) in message.details { line(k, v) }
+        let names = message.attachments.filter { !$0.isHidden }.map(\.filename)
+        line("Bijlagen", names.joined(separator: ", "))
+        doc.append(NSAttributedString(string: "\n"))
+
+        switch message.body {
+        case .html(let html):
+            if let data = html.data(using: .utf8),
+               let a = NSAttributedString(html: data, options: [.characterEncoding: String.Encoding.utf8.rawValue],
+                                          documentAttributes: nil) {
+                doc.append(a)
+            } else {
+                doc.append(NSAttributedString(string: message.plainBody, attributes: [.font: regular]))
+            }
+        case .rtf(let data):
+            doc.append(NSAttributedString(rtf: data, documentAttributes: nil)
+                ?? NSAttributedString(string: message.plainBody, attributes: [.font: regular]))
+        case .text(let text):
+            doc.append(NSAttributedString(string: text, attributes: [.font: regular]))
+        }
+
+        let info = NSPrintInfo.shared.copy() as! NSPrintInfo
+        info.horizontalPagination = .fit
+        info.isVerticallyCentered = false
+        let width = info.paperSize.width - info.leftMargin - info.rightMargin
+        let view = NSTextView(frame: NSRect(x: 0, y: 0, width: width, height: 100))
+        view.textStorage?.setAttributedString(doc)
+        view.sizeToFit()
+        let op = NSPrintOperation(view: view, printInfo: info)
+        op.jobTitle = message.subject
+        op.run()
     }
 }
