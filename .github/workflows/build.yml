@@ -9,6 +9,10 @@ on:
 jobs:
   macos:
     runs-on: macos-26
+    env:
+      # Signing and notarization run when the secrets are set (see "Notarized builds" in the README)
+      # and never for pull requests, which don't need a distributable app.
+      NOTARIZE: ${{ secrets.MACOS_CERTIFICATE_P12 != '' && github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v4
       - name: Swift version
@@ -17,8 +21,34 @@ jobs:
         run: swift test
       - name: Build app bundle (native, as a user would)
         run: /bin/bash ./scripts/build-app.sh
+      - name: Import Developer ID certificate
+        if: env.NOTARIZE == 'true'
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          echo "$MACOS_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" | sed -nE 's/.*"(Developer ID Application: .*)"/\1/p' | head -1)"
+          [[ -n "$IDENTITY" ]] || { echo "No Developer ID Application identity in MACOS_CERTIFICATE_P12"; exit 1; }
+          echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
       - name: Build app bundle (universal)
         run: ./scripts/build-app.sh universal
+      - name: Notarize
+        if: env.NOTARIZE == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: ./scripts/notarize.sh
       - name: Smoke test pstdump
         run: |
           swift run -c release pstdump Tests/PSTKitTests/Fixtures/tika-ansi-high.pst --messages

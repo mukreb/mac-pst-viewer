@@ -3,6 +3,10 @@
 #
 #   ./scripts/build-app.sh            # build for this Mac
 #   ./scripts/build-app.sh universal  # Apple Silicon + Intel
+#
+# Set SIGN_IDENTITY to a "Developer ID Application: …" certificate in your keychain to sign for
+# distribution (hardened runtime + secure timestamp, as notarization requires); then run
+# ./scripts/notarize.sh. Without it the app is ad-hoc signed and only runs on this Mac without warnings.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -41,9 +45,15 @@ else
   echo "  (icon skipped)"
 fi
 
-echo "▸ Ad-hoc signing…"
 xattr -cr "$STAGE"
-codesign --force --deep --sign - "$STAGE"
+if [[ -n "${SIGN_IDENTITY:-}" ]]; then
+  echo "▸ Signing with \"$SIGN_IDENTITY\"…"
+  codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$STAGE"
+  codesign --verify --strict --verbose=2 "$STAGE"
+else
+  echo "▸ Ad-hoc signing…"
+  codesign --force --deep --sign - "$STAGE"
+fi
 
 rm -rf "$APP"
 mkdir -p dist
