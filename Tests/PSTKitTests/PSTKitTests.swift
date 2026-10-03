@@ -167,6 +167,13 @@ final class PSTKitTests: XCTestCase {
         XCTAssertEqual(String(decoding: out, as: UTF8.self), "hello hello hello hello")
     }
 
+    func testSafeName() {
+        XCTAssertEqual(EMLWriter.safeName(".."), "__")
+        XCTAssertEqual(EMLWriter.safeName("."), "_")
+        XCTAssertEqual(EMLWriter.safeName("a/b:c"), "a_b_c")
+        XCTAssertEqual(EMLWriter.safeName("  "), "zonder onderwerp")
+    }
+
     func testCodepages() {
         XCTAssertEqual(PSTText.decode([0x63, 0x61, 0x66, 0xE9], codepage: 1252), "café")
         XCTAssertEqual(PSTText.decode([0x80], codepage: 1252), "€")

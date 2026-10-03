@@ -104,14 +104,14 @@ struct AttachmentBar: View {
     }
 
     func temporaryFile(for att: Attachment) throws -> URL {
+        // A fresh directory per request: NIDs and file names are only unique within one PST,
+        // and several PSTs can be open at the same time.
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("PSTViewer", isDirectory: true)
-            .appendingPathComponent("\(message.nid)-\(att.id)", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent(fileName(for: att))
-        if !FileManager.default.fileExists(atPath: url.path) {
-            try contents(of: att).write(to: url)
-        }
+        try contents(of: att).write(to: url)
         return url
     }
 }

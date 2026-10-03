@@ -83,6 +83,9 @@ public enum EMLWriter {
     public static func safeName(_ s: String) -> String {
         let bad = CharacterSet(charactersIn: "/\\:?%*|\"<>\n\r\t")
         var r = s.components(separatedBy: bad).joined(separator: "_").trimmingCharacters(in: .whitespaces)
+        // Avoid "." / ".." path components and hidden files.
+        let dots = r.prefix { $0 == "." }.count
+        r = String(repeating: "_", count: dots) + r.dropFirst(dots)
         if r.isEmpty { r = "zonder onderwerp" }
         return String(r.prefix(120))
     }
