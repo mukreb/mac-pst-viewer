@@ -88,6 +88,17 @@ struct PSTViewerApp: App {
                 .onOpenURL { url in
                     if url.isFileURL { model.open(url) }
                 }
+                .onAppear {
+                    // `PSTViewer /path/to/file.pst` from the command line.
+                    let args = CommandLine.arguments.dropFirst()
+                    var skipNext = false
+                    for arg in args {
+                        if skipNext { skipNext = false; continue }
+                        if arg.hasPrefix("-") { skipNext = arg == "--snapshot"; continue }
+                        let url = URL(fileURLWithPath: arg)
+                        if ["pst", "ost"].contains(url.pathExtension.lowercased()) { model.open(url) }
+                    }
+                }
                 .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
         }
         .commands {
