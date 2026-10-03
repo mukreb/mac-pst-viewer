@@ -16,6 +16,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Test PSTKit
         run: swift test
+      - name: Stamp version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          plutil -replace CFBundleShortVersionString -string "$VERSION" Resources/Info.plist
+          plutil -replace CFBundleVersion -string "$GITHUB_RUN_NUMBER" Resources/Info.plist
       - name: Build app bundle (universal)
         run: ./scripts/build-app.sh universal
       - name: Zip app
