@@ -102,7 +102,7 @@ struct MessageListView: View {
         let unread = model.visibleRows.filter { !$0.summary.isRead }.count
         var s = n == 1 ? tr("1 message", "1 bericht") : tr("\(n) messages", "\(n) berichten")
         // Searching this folder: make clear the list is filtered, not the whole folder.
-        if model.searchResults != nil && model.searchScope == .folder {
+        if model.searchResults != nil && model.searchResultsScope == .folder {
             let total = model.rows.count
             s = total == 1 ? tr("\(n) of 1 message", "\(n) van 1 bericht")
                            : tr("\(n) of \(total) messages", "\(n) van \(total) berichten")
