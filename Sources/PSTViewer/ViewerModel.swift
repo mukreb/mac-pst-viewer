@@ -170,11 +170,16 @@ final class ViewerModel: ObservableObject {
         }
     }
 
+    private var opening = Set<URL>()
+
     func open(_ url: URL) {
+        let key = url.standardizedFileURL
+        guard !opening.contains(key) else { return }
         if let existing = stores.first(where: { $0.file.url.standardizedFileURL == url.standardizedFileURL }) {
             selectFirstFolder(of: existing)
             return
         }
+        opening.insert(key)
         isLoading = true
         loadingText = "\(url.lastPathComponent) openen…"
         let showSystem = showSystemFolders
@@ -185,6 +190,7 @@ final class ViewerModel: ObservableObject {
                 let root = try file.rootFolder()
                 let store = OpenStore(file: file, root: root, showSystemFolders: showSystem)
                 await MainActor.run {
+                    self.opening.remove(key)
                     self.stores.append(store)
                     self.isLoading = false
                     var recents = self.recentFiles.filter { $0 != url }
@@ -196,6 +202,7 @@ final class ViewerModel: ObservableObject {
             } catch {
                 if accessing { url.stopAccessingSecurityScopedResource() }
                 await MainActor.run {
+                    self.opening.remove(key)
                     self.isLoading = false
                     self.errorMessage = "Kan \(url.lastPathComponent) niet openen.\n\n\(error)"
                 }

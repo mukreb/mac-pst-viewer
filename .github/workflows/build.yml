@@ -19,11 +19,14 @@ jobs:
         run: ./scripts/build-app.sh universal
       - name: Smoke test pstdump
         run: swift run -c release pstdump Tests/PSTKitTests/Fixtures/tika-ansi-high.pst --messages
-      - name: Screenshot
-        timeout-minutes: 3
+      - name: Screenshots
+        timeout-minutes: 4
         continue-on-error: true
         run: |
-          "dist/PST Viewer.app/Contents/MacOS/PSTViewer" "$PWD/Tests/PSTKitTests/Fixtures/tika-testPST.pst" --demo --snapshot "$PWD/dist/screenshot.png" < /dev/null
+          APP="dist/PST Viewer.app/Contents/MacOS/PSTViewer"
+          "$APP" --snapshot "$PWD/dist/screenshot-welcome.png" < /dev/null
+          "$APP" "$PWD/Tests/PSTKitTests/Fixtures/tika-testPST.pst" --demo --snapshot "$PWD/dist/screenshot-viewer.png" < /dev/null
+          "$APP" "$PWD/Tests/PSTKitTests/Fixtures/dist-list-ansi.pst" --demo --snapshot "$PWD/dist/screenshot-ansi.png" < /dev/null
       - name: Zip app
         run: cd dist && ditto -c -k --keepParent "PST Viewer.app" PST-Viewer.zip
       - uses: actions/upload-artifact@v4
@@ -32,8 +35,8 @@ jobs:
           path: dist/PST-Viewer.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: screenshot
-          path: dist/screenshot.png
+          name: screenshots
+          path: dist/screenshot-*.png
           if-no-files-found: ignore
 
   linux:

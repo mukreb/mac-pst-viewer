@@ -10,14 +10,19 @@ enum PSTTypes {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    /// Files opened (Finder double-click, drag onto Dock icon) before the window existed.
-    static var pendingURLs: [URL] = []
-    static var openHandler: ((URL) -> Void)?
+    // Note: opening files (Finder double-click, Dock, `PSTViewer file.pst`) is deliberately
+    // left to SwiftUI (`onOpenURL` below). Implementing `application(_:open:)` here would
+    // stop SwiftUI from creating the main window when the app is launched with a file.
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Needed when started as a bare executable (`swift run`) instead of an .app bundle.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+
+        // Safety net: make sure there is always a main window.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            AppDelegate.ensureMainWindow()
+        }
 
         // `--snapshot <file.png>`: render the main window to a PNG and quit (used by CI).
         let args = CommandLine.arguments
@@ -49,10 +54,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         print("snapshot written to \(url.path)")
     }
 
-    func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls {
-            if let handler = AppDelegate.openHandler { handler(url) } else { AppDelegate.pendingURLs.append(url) }
+    /// Opens the main window through its Window-menu item if no window is visible.
+    static func ensureMainWindow() {
+        guard !NSApp.windows.contains(where: { $0.isVisible && $0.frame.width > 400 }) else { return }
+        for top in NSApp.mainMenu?.items ?? [] {
+            for item in top.submenu?.items ?? [] where item.title == "PST Viewer" {
+                if let action = item.action {
+                    NSApp.sendAction(action, to: item.target, from: item)
+                    return
+                }
+            }
         }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { AppDelegate.ensureMainWindow() }
+        return true
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
@@ -68,16 +85,10 @@ struct PSTViewerApp: App {
             ContentView()
                 .environmentObject(model)
                 .frame(minWidth: 900, minHeight: 560)
-                .onAppear {
-                    AppDelegate.openHandler = { url in model.open(url) }
-                    for url in AppDelegate.pendingURLs { model.open(url) }
-                    AppDelegate.pendingURLs.removeAll()
-                    // Allow `PSTViewer /path/to/file.pst` from the command line.
-                    for arg in CommandLine.arguments.dropFirst() where !arg.hasPrefix("-") && !arg.hasSuffix(".png") {
-                        let url = URL(fileURLWithPath: arg)
-                        if ["pst", "ost"].contains(url.pathExtension.lowercased()) { model.open(url) }
-                    }
+                .onOpenURL { url in
+                    if url.isFileURL { model.open(url) }
                 }
+                .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
         }
         .commands {
             CommandGroup(replacing: .newItem) {
