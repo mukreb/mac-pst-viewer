@@ -569,19 +569,30 @@ public enum MIME {
         var day: Int?, month: Int?, year: Int?
         var h = 0, m = 0, sec = 0
         var offset: Int?
+        var offsetFromName = false
         for t in tokens {
             let lower = t.lowercased()
+            let digits = t.dropFirst().filter { $0 != ":" }
             if month == nil, let i = months.firstIndex(where: { lower.hasPrefix($0) }), lower.count >= 3, lower.allSatisfy(\.isLetter) {
                 month = i + 1
+            } else if t.hasPrefix("+") || t.hasPrefix("-"), (3...4).contains(digits.count),
+                      let v = Int(digits) {
+                // +0100, -0500, +01:00, and the odd +100 from broken clients. A numeric
+                // offset wins over a zone name.
+                if offset == nil || offsetFromName {
+                    offset = (t.hasPrefix("-") ? -1 : 1) * (v / 100 * 60 + v % 100)
+                    offsetFromName = false
+                }
             } else if t.contains(":") {
                 let p = t.split(separator: ":").map { Int($0) }
                 guard p.count >= 2, let hh = p[0], let mm = p[1] else { continue }
                 h = hh; m = mm
                 if p.count > 2, let ss = p[2] { sec = ss }
-            } else if (t.hasPrefix("+") || t.hasPrefix("-")), t.count == 5, let v = Int(t.dropFirst()) {
-                offset = (t.hasPrefix("-") ? -1 : 1) * (v / 100 * 60 + v % 100)
+            } else if t.uppercased().trimmingCharacters(in: CharacterSet(charactersIn: "()")) == "DST" {
+                // `MET DST`: summer time, an hour ahead of the named zone.
+                if offsetFromName, let o = offset { offset = o + 60; offsetFromName = false }
             } else if let z = zones[t.uppercased().trimmingCharacters(in: CharacterSet(charactersIn: "()"))] {
-                if offset == nil { offset = z }
+                if offset == nil { offset = z; offsetFromName = true }
             } else if let n = Int(t) {
                 if day == nil && n >= 1 && n <= 31 && t.count <= 2 { day = n }
                 else if year == nil { year = n }
