@@ -82,6 +82,8 @@ enum Inflate {
     private static let fixedDist = Huffman(lengths: [Int](repeating: 5, count: 30))
 
     static func raw(_ input: [UInt8], start: Int = 0, expectedSize: Int = 0) -> [UInt8]? {
+        // Never produce more than advertised (or 64 MB when unknown): guards against decompression bombs.
+        let limit = expectedSize > 0 ? expectedSize : 64 << 20
         var br = BitReader(input, start)
         var out: [UInt8] = []
         out.reserveCapacity(expectedSize)
@@ -96,10 +98,11 @@ enum Inflate {
                 let len = Int(input[br.pos]) | Int(input[br.pos + 1]) << 8
                 br.pos += 4
                 guard br.pos + len <= input.count else { return nil }
+                guard out.count + len <= limit else { return nil }
                 out.append(contentsOf: input[br.pos..<(br.pos + len)])
                 br.pos += len
             case 1:
-                guard codes(&br, &out, fixedLit, fixedDist) else { return nil }
+                guard codes(&br, &out, fixedLit, fixedDist, limit: limit) else { return nil }
             case 2:
                 guard let hlit = br.bits(5), let hdist = br.bits(5), let hclen = br.bits(4) else { return nil }
                 let order = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]
@@ -129,7 +132,7 @@ enum Inflate {
                 guard lengths.count == total else { return nil }
                 let lit = Huffman(lengths: Array(lengths[0..<(hlit + 257)]))
                 let dist = Huffman(lengths: Array(lengths[(hlit + 257)...]))
-                guard codes(&br, &out, lit, dist) else { return nil }
+                guard codes(&br, &out, lit, dist, limit: limit) else { return nil }
             default:
                 return nil
             }
@@ -137,10 +140,11 @@ enum Inflate {
         return out
     }
 
-    private static func codes(_ br: inout BitReader, _ out: inout [UInt8], _ lit: Huffman, _ dist: Huffman) -> Bool {
+    private static func codes(_ br: inout BitReader, _ out: inout [UInt8], _ lit: Huffman, _ dist: Huffman, limit: Int) -> Bool {
         while true {
             guard let sym = lit.decode(&br) else { return false }
             if sym < 256 {
+                guard out.count < limit else { return false }
                 out.append(UInt8(sym))
             } else if sym == 256 {
                 return true
@@ -152,6 +156,7 @@ enum Inflate {
                 let d = distBase[ds] + de
                 guard d <= out.count else { return false }
                 let from = out.count - d
+                guard out.count + len <= limit else { return false }
                 for k in 0..<len { out.append(out[from + k]) }
             }
         }

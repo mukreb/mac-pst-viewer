@@ -172,11 +172,12 @@ public enum EMLWriter {
         guard email.contains("@") else { return encodeWord(cleanName.isEmpty ? email : cleanName) }
         if cleanName.isEmpty || cleanName == email { return email }
         let displayName: String
-        if cleanName.unicodeScalars.allSatisfy({ $0.isASCII }) {
+        if cleanName.unicodeScalars.allSatisfy({ $0.isASCII }) && cleanName.count <= 70 {
             let escaped = cleanName.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
             displayName = "\"\(escaped)\""
         } else {
-            displayName = encodeWord(cleanName)
+            // Non-ASCII or long names: split encoded words that fold onto continuation lines.
+            displayName = encodeWord(cleanName, force: true)
         }
         return "\(displayName) <\(email)>"
     }
