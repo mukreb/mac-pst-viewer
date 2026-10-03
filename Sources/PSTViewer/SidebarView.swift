@@ -117,10 +117,10 @@ struct FileInfoView: View {
             Text(store.file.displayName)
                 .font(.title2.weight(.semibold))
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-                ForEach(store.file.info, id: \.0) { key, value in
+                ForEach(store.file.info, id: \.0) { item in
                     GridRow {
-                        Text(key).foregroundStyle(.secondary)
-                        Text(value).textSelection(.enabled)
+                        Text(item.0).foregroundStyle(.secondary)
+                        Text(item.1).textSelection(.enabled)
                     }
                 }
                 GridRow {

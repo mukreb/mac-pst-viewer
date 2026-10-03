@@ -140,8 +140,8 @@ public final class PSTFile: @unchecked Sendable {
         }
         if childNIDs.isEmpty {
             // Fallback: use parent pointers from the node index.
-            childNIDs = ndb.nodes.values
-                .filter { $0.nidParent == nid && $0.nid != nid && ($0.nid & 0x1F) == 0x02 }
+            childNIDs = ndb.children(of: nid)
+                .filter { $0.nid != nid && ($0.nid & 0x1F) == 0x02 }
                 .map(\.nid)
                 .sorted()
         }
@@ -188,8 +188,8 @@ public final class PSTFile: @unchecked Sendable {
             }
         }
         // Fallback / supplement: messages whose parent is this folder but that are missing from the table.
-        let orphaned = ndb.nodes.values.filter {
-            $0.nidParent == folderNID && ($0.nid & 0x1F) == 0x04 && !seen.contains($0.nid)
+        let orphaned = ndb.children(of: folderNID).filter {
+            ($0.nid & 0x1F) == 0x04 && !seen.contains($0.nid)
         }
         for e in orphaned.sorted(by: { $0.nid < $1.nid }) {
             if let m = try? message(nid: e.nid) { result.append(m.summary) }

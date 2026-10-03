@@ -166,10 +166,10 @@ struct MessageHeaderView: View {
             let details = message.details
             if !details.isEmpty {
                 Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
-                    ForEach(Array(details.enumerated()), id: \.offset) { _, item in
+                    ForEach(Array(details.enumerated()), id: \.offset) { pair in
                         GridRow {
-                            Text(item.0).foregroundStyle(.secondary)
-                            Text(item.1).textSelection(.enabled)
+                            Text(pair.element.0).foregroundStyle(.secondary)
+                            Text(pair.element.1).textSelection(.enabled)
                         }
                     }
                 }

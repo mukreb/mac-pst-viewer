@@ -2,6 +2,7 @@ name: Build
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -18,12 +19,23 @@ jobs:
         run: ./scripts/build-app.sh universal
       - name: Smoke test pstdump
         run: swift run -c release pstdump Tests/PSTKitTests/Fixtures/tika-ansi-high.pst --messages
+      - name: Screenshot
+        run: |
+          "dist/PST Viewer.app/Contents/MacOS/PSTViewer" "$PWD/Tests/PSTKitTests/Fixtures/tika-testPST.pst" --demo &
+          sleep 15
+          screencapture -x dist/screenshot.png || true
+          kill %1 || true
       - name: Zip app
         run: cd dist && ditto -c -k --keepParent "PST Viewer.app" PST-Viewer.zip
       - uses: actions/upload-artifact@v4
         with:
           name: PST-Viewer-macOS
           path: dist/PST-Viewer.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshot
+          path: dist/screenshot.png
+          if-no-files-found: ignore
 
   linux:
     runs-on: ubuntu-latest

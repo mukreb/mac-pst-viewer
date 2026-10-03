@@ -140,6 +140,9 @@ final class ViewerModel: ObservableObject {
     }
     @AppStorage("recentFiles") private var recentFilesData = Data()
 
+    /// Set by the `--demo` launch argument: selects the first message automatically (used for CI screenshots).
+    var autoSelectFirstMessage = CommandLine.arguments.contains("--demo")
+
     private var folderRows: [MessageRow] = []
     private var searchTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
@@ -256,6 +259,10 @@ final class ViewerModel: ObservableObject {
                 guard self.selectedFolder == ref else { return }
                 self.folderRows = rows
                 self.rows = rows
+                if self.autoSelectFirstMessage, let first = rows.first {
+                    self.autoSelectFirstMessage = false
+                    self.selectedMessage = first.ref
+                }
                 if !self.searchText.isEmpty { self.scheduleSearch() }
             }
         }

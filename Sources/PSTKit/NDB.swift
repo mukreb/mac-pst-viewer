@@ -110,6 +110,15 @@ final class NDB: @unchecked Sendable {
     }
 
     var nodeCount: Int { nodes.count }
+
+    /// Nodes grouped by their parent NID (built on first use).
+    private lazy var childrenByParent: [UInt32: [NodeEntry]] = Dictionary(grouping: nodes.values, by: \.nidParent)
+
+    func children(of nid: UInt32) -> [NodeEntry] {
+        lock.lock()
+        defer { lock.unlock() }
+        return childrenByParent[nid] ?? []
+    }
     var blockCount: Int { blocks.count }
 
     // MARK: - B-tree pages
