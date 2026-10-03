@@ -33,10 +33,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let settings = args.contains("--settings")
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 if settings {
-                    // Open the Settings scene (macOS 13 uses showPreferencesWindow:, 14+ showSettingsWindow:).
-                    if !NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) {
-                        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-                    }
+                    // Host the settings view in its own window so it can be snapshotted reliably.
+                    let host = NSHostingView(rootView: SettingsView().environmentObject(ViewerModel()))
+                    let size = host.fittingSize
+                    let window = NSWindow(contentRect: NSRect(x: 60, y: 60, width: size.width, height: size.height),
+                                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
+                    window.title = "Instellingen"
+                    window.contentView = host
+                    window.makeKeyAndOrderFront(nil)
+                    AppDelegate.settingsSnapshotWindow = window
                 } else {
                     NSApp.windows.first { $0.isVisible && $0.contentView != nil }?
                         .setFrame(NSRect(x: 40, y: 40, width: 1380, height: 820), display: true)
@@ -49,11 +54,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    static var settingsSnapshotWindow: NSWindow?
+
     static func snapshot(to url: URL, preferKeyWindow: Bool = false) {
         for w in NSApp.windows {
             print("window: \(w.title) visible=\(w.isVisible) frame=\(w.frame)")
         }
-        let candidate = preferKeyWindow ? (NSApp.keyWindow ?? NSApp.windows.last(where: { $0.isVisible }))
+        let candidate = preferKeyWindow ? (settingsSnapshotWindow ?? NSApp.keyWindow)
                                         : NSApp.windows.first(where: { $0.isVisible && $0.frame.width > 400 })
         guard let window = candidate,
               let view = window.contentView?.superview ?? window.contentView,
