@@ -1,0 +1,267 @@
+import Foundation
+
+public enum RTF {
+    private static let prebuf: [UInt8] = Array(
+        ("{\\rtf1\\ansi\\mac\\deff0\\deftab720{\\fonttbl;}{\\f0\\fnil \\froman \\fswiss \\fmodern \\fscript \\fdecor MS Sans SerifSymbolArialTimes New RomanCourier{\\colortbl\\red0\\green0\\blue0\r\n\\par \\pard\\plain\\f0\\fs20\\b\\i\\u\\tab\\tx").utf8)
+
+    /// Decompresses PR_RTF_COMPRESSED ([MS-OXRTFCP]).
+    public static func decompress(_ input: [UInt8]) -> [UInt8]? {
+        guard input.count >= 16 else { return nil }
+        let compSize = Int(input.u32(0))
+        let rawSize = Int(input.u32(4))
+        let magic = input.u32(8)
+        if magic == 0x414C_454D { // "MELA": stored uncompressed
+            return input.slice(16, rawSize)
+        }
+        guard magic == 0x7546_5A4C else { return nil } // "LZFu"
+        var dict = [UInt8](repeating: 0, count: 4096)
+        for (i, b) in prebuf.enumerated() { dict[i] = b }
+        var writePos = prebuf.count
+        var out: [UInt8] = []
+        out.reserveCapacity(rawSize)
+        var pos = 16
+        let end = Swift.min(input.count, compSize + 4)
+        outer: while pos < end {
+            let control = input[pos]
+            pos += 1
+            for bit in 0..<8 {
+                guard pos < end else { break outer }
+                if control & (1 << bit) == 0 {
+                    let b = input[pos]
+                    pos += 1
+                    out.append(b)
+                    dict[writePos] = b
+                    writePos = (writePos + 1) & 0xFFF
+                } else {
+                    guard pos + 1 < end else { break outer }
+                    let ref = Int(input[pos]) << 8 | Int(input[pos + 1])
+                    pos += 2
+                    let offset = ref >> 4
+                    let length = (ref & 0xF) + 2
+                    if offset == writePos { break outer }
+                    for k in 0..<length {
+                        let b = dict[(offset + k) & 0xFFF]
+                        out.append(b)
+                        dict[writePos] = b
+                        writePos = (writePos + 1) & 0xFFF
+                    }
+                }
+            }
+        }
+        if rawSize > 0, out.count > rawSize { out.removeLast(out.count - rawSize) }
+        return out
+    }
+
+    /// True when the RTF was generated from HTML ([MS-OXRTFEX]).
+    public static func isEncapsulatedHTML(_ rtf: [UInt8]) -> Bool {
+        let head = rtf.prefix(2048)
+        return String(decoding: head, as: UTF8.self).contains("\\fromhtml")
+    }
+
+    public static func isEncapsulatedText(_ rtf: [UInt8]) -> Bool {
+        let head = rtf.prefix(2048)
+        return String(decoding: head, as: UTF8.self).contains("\\fromtext")
+    }
+
+    /// Extracts the original HTML from HTML-encapsulated RTF.
+    public static func extractHTML(_ rtf: [UInt8]) -> String {
+        Converter(rtf, mode: .html).run()
+    }
+
+    /// Converts RTF to plain text (best effort).
+    public static func plainText(_ rtf: [UInt8]) -> String {
+        Converter(rtf, mode: .text).run()
+    }
+
+    private final class Converter {
+        enum Mode { case html, text }
+
+        struct State {
+            var skip = false          // inside an ignored destination
+            var htmlrtf = false       // \htmlrtf suppression
+            var inHtmlTag = false     // inside {\*\htmltag ...}
+            var uc = 1
+        }
+
+        let src: [UInt8]
+        let mode: Mode
+        var pos = 0
+        var codepage = 1252
+        var out = ""
+        var pending: [UInt8] = []
+        var stack: [State] = []
+        var state = State()
+        var skipChars = 0
+        var groupJustOpened = false
+
+        init(_ src: [UInt8], mode: Mode) {
+            self.src = src
+            self.mode = mode
+        }
+
+        func flush() {
+            if !pending.isEmpty {
+                out += Text.decode(pending, codepage: codepage)
+                pending.removeAll(keepingCapacity: true)
+            }
+        }
+
+        var emitting: Bool {
+            if state.skip { return false }
+            if mode == .html { return state.inHtmlTag || !state.htmlrtf }
+            return true
+        }
+
+        func emitByte(_ b: UInt8) {
+            guard emitting else { return }
+            if skipChars > 0 { skipChars -= 1; return }
+            pending.append(b)
+        }
+
+        func emitString(_ s: String) {
+            guard emitting else { return }
+            flush()
+            out += s
+        }
+
+        static let skipDestinations: Set<String> = [
+            "fonttbl", "colortbl", "stylesheet", "info", "pict", "object", "header", "footer",
+            "headerl", "headerr", "footerl", "footerr", "listtable", "listoverridetable", "revtbl",
+            "rsidtbl", "xmlnstbl", "themedata", "colorschememapping", "datastore", "latentstyles",
+            "generator", "filetbl", "mmathPr", "pgdsctbl", "fldinst", "bkmkstart", "bkmkend",
+        ]
+
+        func run() -> String {
+            while pos < src.count {
+                let c = src[pos]
+                switch c {
+                case UInt8(ascii: "{"):
+                    stack.append(state)
+                    groupJustOpened = true
+                    pos += 1
+                    continue
+                case UInt8(ascii: "}"):
+                    flush()
+                    if let s = stack.popLast() { state = s }
+                    pos += 1
+                case UInt8(ascii: "\\"):
+                    parseControl()
+                case 0x0D, 0x0A:
+                    pos += 1
+                default:
+                    emitByte(c)
+                    pos += 1
+                }
+                groupJustOpened = false
+            }
+            flush()
+            return out
+        }
+
+        func parseControl() {
+            let wasGroupStart = groupJustOpened
+            pos += 1
+            guard pos < src.count else { return }
+            let c = src[pos]
+            if !isAlpha(c) {
+                pos += 1
+                switch c {
+                case UInt8(ascii: "'"):
+                    guard pos + 1 < src.count, let v = UInt8(String(decoding: src[pos..<(pos + 2)], as: UTF8.self), radix: 16) else { return }
+                    pos += 2
+                    emitByte(v)
+                case UInt8(ascii: "*"):
+                    // Optional destination: skip unless it is an htmltag (html mode) handled by the next word.
+                    peekStarDestination()
+                case UInt8(ascii: "\\"), UInt8(ascii: "{"), UInt8(ascii: "}"):
+                    emitByte(c)
+                case UInt8(ascii: "~"):
+                    emitString("\u{00A0}")
+                case UInt8(ascii: "-"), UInt8(ascii: "_"):
+                    break
+                case 0x0D, 0x0A:
+                    emitString(mode == .html ? "\r\n" : "\n")
+                default:
+                    break
+                }
+                return
+            }
+            let wordStart = pos
+            while pos < src.count, isAlpha(src[pos]) { pos += 1 }
+            let word = String(decoding: src[wordStart..<pos], as: UTF8.self)
+            var param: Int? = nil
+            if pos < src.count, src[pos] == UInt8(ascii: "-") || isDigit(src[pos]) {
+                let ps = pos
+                pos += 1
+                while pos < src.count, isDigit(src[pos]) { pos += 1 }
+                param = Int(String(decoding: src[ps..<pos], as: UTF8.self))
+            }
+            if pos < src.count, src[pos] == UInt8(ascii: " ") { pos += 1 }
+            handle(word: word, param: param, atGroupStart: wasGroupStart)
+        }
+
+        func peekStarDestination() {
+            // Read the following control word to decide.
+            var p = pos
+            while p < src.count, src[p] == 0x0D || src[p] == 0x0A || src[p] == 0x20 { p += 1 }
+            guard p < src.count, src[p] == UInt8(ascii: "\\") else { state.skip = true; return }
+            var q = p + 1
+            while q < src.count, isAlpha(src[q]) { q += 1 }
+            let word = String(decoding: src[(p + 1)..<q], as: UTF8.self)
+            if mode == .html, word == "htmltag" || word == "mhtmltag" {
+                return // handled by the word itself
+            }
+            state.skip = true
+        }
+
+        func handle(word: String, param: Int?, atGroupStart: Bool) {
+            switch word {
+            case "ansicpg":
+                if let p = param { flush(); codepage = p }
+            case "uc":
+                state.uc = param ?? 1
+            case "u":
+                if var v = param {
+                    if v < 0 { v += 65536 }
+                    if let scalar = Unicode.Scalar(UInt32(v)) { emitString(String(Character(scalar))) }
+                    skipChars = state.uc
+                }
+            case "htmltag", "mhtmltag":
+                if mode == .html {
+                    state.inHtmlTag = true
+                    state.skip = false
+                }
+            case "htmlrtf":
+                state.htmlrtf = (param ?? 1) != 0
+            case "par", "line":
+                if mode == .text || state.inHtmlTag { emitString(mode == .html ? "\r\n" : "\n") }
+                else if !state.htmlrtf { emitString("\r\n") }
+            case "tab":
+                emitString("\t")
+            case "emdash": emitString("—")
+            case "endash": emitString("–")
+            case "bullet": emitString("•")
+            case "lquote": emitString("‘")
+            case "rquote": emitString("’")
+            case "ldblquote": emitString("“")
+            case "rdblquote": emitString("”")
+            case "cell":
+                if mode == .text { emitString("\t") }
+            case "row":
+                if mode == .text { emitString("\n") }
+            case "sect", "page":
+                if mode == .text { emitString("\n\n") }
+            default:
+                if atGroupStart, Converter.skipDestinations.contains(word) {
+                    state.skip = true
+                }
+            }
+        }
+
+        @inline(__always) func isAlpha(_ c: UInt8) -> Bool {
+            (c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A)
+        }
+
+        @inline(__always) func isDigit(_ c: UInt8) -> Bool { c >= 0x30 && c <= 0x39 }
+    }
+}
