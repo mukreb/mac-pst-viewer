@@ -273,6 +273,15 @@ final class ViewerModel: ObservableObject {
     private func loadMessages() {
         loadTask?.cancel()
         selectedMessage = nil
+        // Don't leave the previous folder's rows (or a folder-scoped search) visible while loading.
+        rows = []
+        folderRows = []
+        if searchScope == .folder {
+            searchTask?.cancel()
+            searchGeneration += 1
+            searchResults = nil
+            isSearching = false
+        }
         guard let ref = selectedFolder, let s = store(ref.store) else { rows = []; return }
         let file = s.file
         loadTask = Task.detached(priority: .userInitiated) {

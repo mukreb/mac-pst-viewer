@@ -173,11 +173,22 @@ public final class Message: @unchecked Sendable {
 
     // MARK: Attachments
 
-    public lazy var attachments: [Attachment] = {
-        guard let sub = try? node.subnode(0x671), let tc = try? TableContext(sub) else { return [] }
+    public var attachments: [Attachment] { attachmentLoad.list }
+
+    /// Attachments that are listed in the attachment table but could not be decoded.
+    /// Exports treat these as failures instead of silently dropping them.
+    public var attachmentErrors: [String] { attachmentLoad.errors }
+
+    private lazy var attachmentLoad: (list: [Attachment], errors: [String]) = {
+        guard let sub = try? node.subnode(0x671) else { return ([], []) }
+        guard let tc = try? TableContext(sub) else { return ([], ["bijlagentabel kan niet worden gelezen"]) }
         var result: [Attachment] = []
+        var errors: [String] = []
         for row in tc.rows() {
-            guard let attNode = try? node.subnode(row.rowID), let apc = try? PropertyContext(attNode) else { continue }
+            guard let attNode = try? node.subnode(row.rowID), let apc = try? PropertyContext(attNode) else {
+                errors.append("bijlage \(result.count + errors.count + 1) kan niet worden gelezen")
+                continue
+            }
             func s(_ id: UInt16) -> String { apc.value(id)?.stringValue(codepage: codepage) ?? "" }
             var name = s(PropID.attachLongFilename)
             if name.isEmpty { name = s(PropID.attachFilename) }
@@ -202,7 +213,7 @@ public final class Message: @unchecked Sendable {
                 embeddedNID: method == 5 ? embedded : nil
             ))
         }
-        return result
+        return (result, errors)
     }()
 
     public func data(for attachment: Attachment) throws -> Data {

@@ -230,6 +230,7 @@ final class PSTKitTests: XCTestCase {
         XCTAssertEqual(EMLWriter.safeName("."), "_")
         XCTAssertEqual(EMLWriter.safeName("a/b:c"), "a_b_c")
         XCTAssertEqual(EMLWriter.safeName("  "), "zonder onderwerp")
+        XCTAssertLessThanOrEqual(EMLWriter.safeName(String(repeating: "😀", count: 120)).utf8.count, 200)
     }
 
     func testCodepages() {

@@ -26,6 +26,9 @@ public enum EMLWriter {
         let text = m.plainBody
         var html: String? = nil
         if case .html(let h) = m.body { html = h }
+        if let problem = m.attachmentErrors.first {
+            throw PSTError.corrupt("\(m.subject): \(problem)")
+        }
         let attachments = m.attachments
 
         var bodyPart = ""
@@ -104,7 +107,13 @@ public enum EMLWriter {
         let dots = r.prefix { $0 == "." }.count
         r = String(repeating: "_", count: dots) + r.dropFirst(dots)
         if r.isEmpty { r = "zonder onderwerp" }
-        return String(r.prefix(120))
+        // File systems limit a name to 255 bytes; keep room for " (123)" and an extension.
+        var limited = ""
+        for ch in r {
+            if limited.utf8.count + String(ch).utf8.count > 200 { break }
+            limited.append(ch)
+        }
+        return limited
     }
 
     static func textPart(_ s: String, subtype: String) -> String {
