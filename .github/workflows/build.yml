@@ -23,6 +23,7 @@ jobs:
         run: |
           swift run -c release pstdump Tests/PSTKitTests/Fixtures/tika-ansi-high.pst --messages
           swift run -c release pstdump Tests/PSTKitTests/Fixtures/netscape --messages
+          swift run -c release pstdump Tests/PSTKitTests/Fixtures/tika-testPST.pst Tests/PSTKitTests/Fixtures/netscape --mbox "$RUNNER_TEMP/export.mbox" --search "example"
       - name: Screenshots
         timeout-minutes: 4
         continue-on-error: true

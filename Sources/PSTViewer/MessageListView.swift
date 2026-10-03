@@ -79,8 +79,8 @@ struct MessageListView: View {
                 .fixedSize()
                 Toggle(tr("Include message text", "Ook in tekst"), isOn: $model.searchBodies)
                     .toggleStyle(.checkbox)
-                    .help(tr("Also search message text and attachment names (slower)",
-                             "Zoek ook in de berichttekst en bijlagenamen (langzamer)"))
+                    .help(tr("Also search message text, attachment names and email addresses (slower)",
+                             "Zoek ook in de berichttekst, bijlagenamen en e-mailadressen (langzamer)"))
             }
             Spacer()
             if model.isSearching {
@@ -167,6 +167,10 @@ struct MessageListView: View {
             Button(refs.count == 1 ? tr("Export as .eml…", "Exporteer als .eml…")
                                    : tr("Export \(refs.count) Messages as .eml…", "Exporteer \(refs.count) berichten als .eml…")) {
                 model.exportMessages(Array(refs))
+            }
+            Button(refs.count == 1 ? tr("Export as mbox…", "Exporteer als mbox…")
+                                   : tr("Export \(refs.count) Messages as mbox…", "Exporteer \(refs.count) berichten als mbox…")) {
+                model.exportMessagesAsMbox(Array(refs))
             }
         } primaryAction: { refs in
             for ref in refs.prefix(10) { openWindow(value: ref) }

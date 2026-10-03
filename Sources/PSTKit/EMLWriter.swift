@@ -101,9 +101,12 @@ public enum EMLWriter {
         return Data(out.utf8)
     }
 
-    /// Appends messages to mbox format (mboxrd quoting).
-    public static func mboxEntry(for m: Message) throws -> Data {
-        let eml = MIME.normalizeLineEndings(try eml(for: m))
+    /// Appends messages to mbox format (mboxrd quoting). `headers` are put in front of the
+    /// message's own headers, for example where the message came from.
+    public static func mboxEntry(for m: Message, headers: [(String, String)] = []) throws -> Data {
+        var message = Data(headers.map { header($0.0, $0.1) }.joined().utf8)
+        message.append(try eml(for: m))
+        let eml = MIME.normalizeLineEndings(message)
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
         df.timeZone = TimeZone(identifier: "UTC")
@@ -112,8 +115,12 @@ public enum EMLWriter {
         let sender = email.contains("@") ? email : "MAILER-DAEMON"
         var out = Data("From \(sender) \(df.string(from: m.date ?? Date(timeIntervalSince1970: 0)))\n".utf8)
         out.reserveCapacity(eml.count + 256)
+        // A message read from an mbox file still carries that file's quoting (">From "): undoing it
+        // and quoting again leaves those lines as they are, so only bare "From " lines need a ">".
+        let quoted = m.rawMIME != nil
         for line in eml.split(separator: 0x0A, omittingEmptySubsequences: false) {
-            if line.drop(while: { $0 == 0x3E }).starts(with: Array("From ".utf8)) { out.append(0x3E) }
+            let from = Array("From ".utf8)
+            if quoted ? line.starts(with: from) : line.drop(while: { $0 == 0x3E }).starts(with: from) { out.append(0x3E) }
             out.append(contentsOf: line)
             out.append(0x0A)
         }

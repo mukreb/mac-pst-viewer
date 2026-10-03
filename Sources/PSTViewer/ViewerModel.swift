@@ -383,8 +383,10 @@ final class ViewerModel: ObservableObject {
                     unreadableMessages += 1
                     return false
                 }
-                if m.bodyError != nil { unreadableMessages += 1 }
-                let full = (hay + " " + m.plainBody + " " + m.attachments.map(\.filename).joined(separator: " ")).lowercased()
+                // The list shows names only for PST mail; the full message also has the addresses.
+                let addresses = m.from + " " + m.to + " " + m.cc + " " + m.bcc
+                if m.bodyError != nil || m.recipientError != nil { unreadableMessages += 1 }
+                let full = (hay + " " + addresses + " " + m.plainBody + " " + m.attachments.map(\.filename).joined(separator: " ")).lowercased()
                 return terms.allSatisfy { full.contains($0) }
             }
 
@@ -431,8 +433,8 @@ final class ViewerModel: ObservableObject {
                                    "\(unreadable.count) map(pen) konden niet worden gelezen (\(names))"))
             }
             if unreadableMessages > 0 {
-                problems.append(tr("the text of \(unreadableMessages) message(s) couldn't be searched",
-                                   "van \(unreadableMessages) bericht(en) kon de tekst niet worden doorzocht"))
+                problems.append(tr("\(unreadableMessages) message(s) couldn't be searched completely",
+                                   "\(unreadableMessages) bericht(en) konden niet volledig worden doorzocht"))
             }
             let warning = problems.isEmpty ? nil : tr("Incomplete: ", "Onvolledig: ") + problems.joined(separator: "; ") + "."
             await MainActor.run {
@@ -481,6 +483,58 @@ final class ViewerModel: ObservableObject {
         }
     }
 
+    /// Writes the given messages (for example all search results) to one mbox file, oldest first.
+    /// Each message gets an X-Folder header naming its file and folder, since search results mix them.
+    func exportMessagesAsMbox(_ refs: [MessageRef]) {
+        guard !refs.isEmpty else { return }
+        let panel = NSSavePanel()
+        let query = searchText.trimmingCharacters(in: .whitespaces)
+        let base = searchResults != nil && !query.isEmpty ? query : (folderNode(selectedFolder)?.name ?? tr("Messages", "Berichten"))
+        panel.nameFieldStringValue = EMLWriter.safeName(base) + ".mbox"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard !overwritesOpenArchive(url) else { return }
+        let selected = Set(refs)
+        let folderName = folderNode(selectedFolder)?.name ?? ""
+        let items: [(ref: MessageRef, location: String)] = visibleRows
+            .filter { selected.contains($0.ref) }
+            .sorted { $0.sortDate < $1.sortDate }
+            .map { row in
+                let file = store(row.ref.store)?.fileName ?? ""
+                return (row.ref, file + "/" + (row.folderName.isEmpty ? folderName : row.folderName))
+            }
+        runExport(count: items.count, text: tr("Exporting messages to mbox…", "Berichten exporteren naar mbox…")) { progress in
+            var failures: [String] = []
+            do {
+                guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
+                    return [tr("Can't create \(url.lastPathComponent).", "Kan \(url.lastPathComponent) niet aanmaken.")]
+                }
+                let handle = try FileHandle(forWritingTo: url)
+                defer { try? handle.close() }
+                for (i, item) in items.enumerated() {
+                    do {
+                        let m = try await self.message(item.ref)
+                        try handle.write(contentsOf: EMLWriter.mboxEntry(for: m, headers: [("X-Folder", item.location)]))
+                    } catch {
+                        failures.append(tr("message \(i + 1)", "bericht \(i + 1)") + ": \(error.localizedDescription)")
+                    }
+                    await progress(i + 1)
+                }
+            } catch {
+                failures.append(error.localizedDescription)
+            }
+            return failures
+        }
+    }
+
+    /// Refuses (with a message) a destination that is one of the open archives or lies inside an
+    /// open mail folder: creating it would truncate or change mail that is still being read.
+    private func overwritesOpenArchive(_ url: URL) -> Bool {
+        guard MboxExport.overlaps(url, sources: stores.map(\.file.url)) else { return false }
+        errorMessage = tr("\(url.lastPathComponent) is an open archive or inside one. Choose another name or folder.",
+                          "\(url.lastPathComponent) is een geopend archief of staat daarin. Kies een andere naam of map.")
+        return true
+    }
+
     /// Writes one message as .eml in the background (large attachments can take a while).
     func exportMessage(_ m: Message, to url: URL) {
         runExport(count: 1, text: tr("Exporting message…", "Bericht exporteren…")) { progress in
@@ -500,6 +554,7 @@ final class ViewerModel: ObservableObject {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = EMLWriter.safeName(node.name) + ".mbox"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard !overwritesOpenArchive(url) else { return }
         let file = s.file
         runExport(count: node.folder.contentCount, text: tr("Exporting \(node.name) to mbox…", "\(node.name) exporteren naar mbox…")) { progress in
             var failures: [String] = []

@@ -126,7 +126,9 @@ final class MboxTests: XCTestCase {
         XCTAssertTrue(String(decoding: eml, as: UTF8.self).contains("caf=E9"))
         let entry = String(decoding: try EMLWriter.mboxEntry(for: try store.message(nid: try store.messages(in: inbox.nid)[1].nid)), as: UTF8.self)
         XCTAssertTrue(entry.hasPrefix("From anna@example.com "))
-        XCTAssertTrue(entry.contains("\n>>From the start"))
+        // The source's own quoting is kept (dequoted once, quoted again); bare From lines get one.
+        XCTAssertTrue(entry.contains("\n>From the start"))
+        XCTAssertFalse(entry.contains("\n>>From the start"))
         XCTAssertTrue(entry.contains("\n>From here on"))
         XCTAssertFalse(entry.contains("\r"))
     }
