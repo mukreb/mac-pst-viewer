@@ -120,21 +120,22 @@ struct WelcomeView: View {
             VStack(spacing: 6) {
                 Text("PST Viewer")
                     .font(.largeTitle.weight(.semibold))
-                Text(tr("View Outlook archives (.pst and .ost) on your Mac — read-only, without Outlook.",
-                        "Bekijk Outlook-archieven (.pst en .ost) op je Mac — alleen-lezen, zonder Outlook."))
+                Text(tr("View Outlook archives (.pst and .ost) and old mbox mail (Netscape, Thunderbird) on your Mac — read-only.",
+                        "Bekijk Outlook-archieven (.pst en .ost) en oude mbox-mail (Netscape, Thunderbird) op je Mac — alleen-lezen."))
+                    .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
             }
             Button {
                 model.showOpenPanel()
             } label: {
-                Label(tr("Open PST File…", "Open PST-bestand…"), systemImage: "folder")
+                Label(tr("Open PST File or Mail Folder…", "Open PST-bestand of mailmap…"), systemImage: "folder")
                     .padding(.horizontal, 8)
             }
             .controlSize(.large)
             .glassButtonStyle(prominent: true)
             .keyboardShortcut(.defaultAction)
 
-            Text(tr("or drag a file onto this window", "of sleep een bestand naar dit venster"))
+            Text(tr("or drag a file or folder onto this window", "of sleep een bestand of map naar dit venster"))
                 .font(.callout)
                 .foregroundStyle(.tertiary)
 
@@ -148,7 +149,7 @@ struct WelcomeView: View {
                             model.open(url)
                         } label: {
                             HStack {
-                                Image(systemName: "doc")
+                                Image(systemName: url.hasDirectoryPath ? "folder" : "doc")
                                 VStack(alignment: .leading) {
                                     Text(url.lastPathComponent)
                                     Text(url.deletingLastPathComponent().path)

@@ -16,7 +16,7 @@ struct SidebarView: View {
                     }
                 } header: {
                     HStack(spacing: 6) {
-                        Image(systemName: "archivebox")
+                        Image(systemName: store.isMbox ? "tray.2" : "archivebox")
                         // The file name, not the store's internal display name: that is usually a
                         // generic "Personal Folders" and doesn't tell several open files apart.
                         VStack(alignment: .leading, spacing: 0) {
@@ -57,7 +57,7 @@ struct SidebarView: View {
                 } label: {
                     Label(tr("Open", "Open"), systemImage: "plus")
                 }
-                .help(tr("Open another PST file", "Nog een PST-bestand openen"))
+                .help(tr("Open another PST file or mail folder", "Nog een PST-bestand of mailmap openen"))
             }
         }
         .sheet(item: $infoStore) { store in

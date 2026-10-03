@@ -1,0 +1,2 @@
+# Mbox fixtures deliberately mix CRLF, LF and CR line endings.
+Tests/PSTKitTests/Fixtures/netscape/** -text

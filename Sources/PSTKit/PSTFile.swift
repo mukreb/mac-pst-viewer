@@ -234,12 +234,14 @@ public final class PSTFile: @unchecked Sendable {
 
     /// Reads the binary content of an attachment.
     public func attachmentData(_ attachment: Attachment) throws -> Data {
-        let pc = try PropertyContext(attachment.node)
+        if let payload = attachment.payload { return Data(payload.data) }
+        guard let node = attachment.node else { throw PSTError.notFound(attachment.filename) }
+        let pc = try PropertyContext(node)
         switch pc.value(PropID.attachData) {
         case .binary(let b)?: return Data(b)
         case .object(let nid, _)?:
             // OLE / embedded object stored in a subnode.
-            guard let sub = try attachment.node.subnode(nid) else {
+            guard let sub = try node.subnode(nid) else {
                 throw PSTError.corrupt(tr("data of attachment '\(attachment.filename)' is missing", "gegevens van bijlage '\(attachment.filename)' ontbreken"))
             }
             return Data(try ndb.dataStream(sub.bidData))
@@ -316,7 +318,7 @@ public struct Folder: Identifiable, Hashable, Sendable {
             "skickade objekt", "sendt", "sendte elementer", "sendt post"].contains(n) { return .sent }
         if ["deleted items", "verwijderde items", "trash"].contains(n) { return .trash }
         if ["drafts", "concepten", "entwürfe", "brouillons", "borradores", "bozze"].contains(n) { return .drafts }
-        if ["outbox", "postvak uit", "postausgang", "boîte d'envoi", "bandeja de salida", "posta in uscita"].contains(n) { return .outbox }
+        if ["outbox", "unsent messages", "postvak uit", "postausgang", "boîte d'envoi", "bandeja de salida", "posta in uscita"].contains(n) { return .outbox }
         if ["junk e-mail", "ongewenste e-mail", "junk email", "spam"].contains(n) { return .junk }
         return .mail
     }

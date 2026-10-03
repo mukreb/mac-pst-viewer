@@ -1,16 +1,16 @@
 import Foundation
 import PSTKit
 
-// Small command-line tool to inspect PST files; also used for testing the parser.
+// Small command-line tool to inspect PST files and mbox archives; also used for testing the parser.
 //
-//   pstdump <file.pst>                 folder tree with message counts
+//   pstdump <file.pst | mbox | folder> folder tree with message counts
 //   pstdump <file.pst> --messages      folder tree + message list
 //   pstdump <file.pst> --show <nid>    full message (hex or decimal nid)
 //   pstdump <file.pst> --eml <nid>     message as .eml on stdout
 
 let args = CommandLine.arguments
 guard args.count >= 2 else {
-    print("Usage: pstdump <file.pst> [--messages | --show <nid> | --eml <nid> | --props <nid>]")
+    print("Usage: pstdump <file.pst | mbox file | mail folder> [--messages | --show <nid> | --eml <nid> | --props <nid>]")
     exit(1)
 }
 
@@ -19,7 +19,7 @@ func parseNID(_ s: String) -> UInt32? {
 }
 
 do {
-    let pst = try PSTFile(url: URL(fileURLWithPath: args[1]))
+    let pst = try MailStores.open(URL(fileURLWithPath: args[1]))
     let mode = args.count > 2 ? args[2] : ""
     let df = DateFormatter()
     df.dateFormat = "yyyy-MM-dd HH:mm"
@@ -40,7 +40,8 @@ do {
         walk(try pst.rootFolder(), "")
     case "--table":
         guard args.count > 3, let nid = parseNID(args[3]) else { print("missing nid"); exit(1) }
-        print(pst.debugTable(nid: nid))
+        guard let file = pst as? PSTFile else { print("--table needs a PST file"); exit(1) }
+        print(file.debugTable(nid: nid))
     case "--show", "--eml", "--props":
         guard args.count > 3, let nid = parseNID(args[3]) else { print("missing nid"); exit(1) }
         let m = try pst.message(nid: nid)
@@ -68,7 +69,11 @@ do {
             }
         }
     default:
-        print("\(pst.displayName) — \(pst.format.rawValue), encryption: \(pst.encryption), \(pst.nodeCount) nodes")
+        if let file = pst as? PSTFile {
+            print("\(file.displayName) — \(file.format.rawValue), encryption: \(file.encryption), \(file.nodeCount) nodes")
+        } else {
+            print("\(pst.displayName) — mbox")
+        }
         let root = try pst.rootFolder()
         func walk(_ f: Folder, _ depth: Int) {
             let indent = String(repeating: "  ", count: depth)

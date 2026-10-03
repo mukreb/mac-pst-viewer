@@ -20,7 +20,9 @@ jobs:
       - name: Build app bundle (universal)
         run: ./scripts/build-app.sh universal
       - name: Smoke test pstdump
-        run: swift run -c release pstdump Tests/PSTKitTests/Fixtures/tika-ansi-high.pst --messages
+        run: |
+          swift run -c release pstdump Tests/PSTKitTests/Fixtures/tika-ansi-high.pst --messages
+          swift run -c release pstdump Tests/PSTKitTests/Fixtures/netscape --messages
       - name: Screenshots
         timeout-minutes: 4
         continue-on-error: true

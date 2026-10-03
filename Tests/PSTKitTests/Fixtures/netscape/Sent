@@ -1,0 +1,42 @@
+From - Mon Oct 18 14:00:00 1999
+X-Mozilla-Status: 0001
+X-Mozilla-Status2: 00000000
+Date: Mon, 18 Oct 1999 14:00:00 +0200
+From: Martijn <mvberkum@example.nl>
+To: anna@example.com
+Subject: Old style attachment
+
+See the file below.
+
+begin 644 data.bin
+M``$"`P0%!@<("0H+#`T.#Q`1$A,4%187&!D:&QP='A\@(2(C)"4F)R@I*BLL
+/+2XO,#$R,S0U-C<X.3H[
+`
+end
+
+Regards
+
+From - Tue Oct 19 15:00:00 1999
+X-Mozilla-Status: 0001
+X-Mozilla-Status2: 00000000
+Date: Tue, 19 Oct 1999 15:00:00 +0200
+From: Martijn <mvberkum@example.nl>
+To: piet@example.nl
+Subject: Fwd: Report with attachment
+Content-Type: multipart/mixed; boundary="fwd"
+
+--fwd
+Content-Type: text/plain
+
+Forwarded below.
+--fwd
+Content-Type: message/rfc822
+
+From: anna@example.com (Anna Smith)
+Subject: Original report
+Date: Wed, 13 Oct 1999 08:59:10 -0500
+
+The original text.
+--fwd--
+
+
