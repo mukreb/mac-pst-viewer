@@ -40,8 +40,8 @@ final class OpenStore: Identifiable {
         let id = self.id
 
         func build(_ f: Folder) -> FolderNode? {
+            if !showSystemFolders && OpenStore.isSystemFolder(f) { return nil }
             let kids = f.children.compactMap(build)
-            if !showSystemFolders && OpenStore.isSystemFolder(f) && f.totalCount == 0 && kids.isEmpty { return nil }
             return FolderNode(ref: FolderRef(store: id, nid: f.nid), folder: f, children: kids.isEmpty ? nil : kids)
         }
 

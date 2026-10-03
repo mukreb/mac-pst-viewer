@@ -17,7 +17,7 @@ struct ContentView: View {
                         .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 400)
                 } content: {
                     MessageListView()
-                        .navigationSplitViewColumnWidth(min: 320, ideal: 460)
+                        .navigationSplitViewColumnWidth(min: 360, ideal: 560)
                 } detail: {
                     if let ref = model.selectedMessage {
                         MessageContainerView(ref: ref)

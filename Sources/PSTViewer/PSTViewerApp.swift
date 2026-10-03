@@ -2,6 +2,7 @@ import AppKit
 import PSTKit
 import SwiftUI
 import UniformTypeIdentifiers
+import WebKit
 
 enum PSTTypes {
     static let pst = UTType(filenameExtension: "pst") ?? .data
@@ -34,8 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
                 AppDelegate.snapshot(to: out)
-                NSApp.terminate(nil)
             }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 25) { NSApp.terminate(nil) }
         }
     }
 
@@ -47,11 +48,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               let view = window.contentView?.superview ?? window.contentView,
               let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
             print("snapshot: no window")
+            NSApp.terminate(nil)
             return
         }
         view.cacheDisplay(in: view.bounds, to: rep)
-        try? rep.representation(using: .png, properties: [:])?.write(to: url)
-        print("snapshot written to \(url.path)")
+
+        // Web views render out of process; paint their own snapshots on top.
+        var webViews: [WKWebView] = []
+        func collect(_ v: NSView) {
+            if let w = v as? WKWebView { webViews.append(w) }
+            v.subviews.forEach(collect)
+        }
+        collect(view)
+        let group = DispatchGroup()
+        var shots: [(NSRect, NSImage)] = []
+        for w in webViews where !w.isHiddenOrHasHiddenAncestor {
+            group.enter()
+            w.takeSnapshot(with: nil) { image, _ in
+                if let image { shots.append((w.convert(w.bounds, to: view), image)) }
+                group.leave()
+            }
+        }
+        group.notify(queue: .main) {
+            NSGraphicsContext.saveGraphicsState()
+            if let ctx = NSGraphicsContext(bitmapImageRep: rep) {
+                NSGraphicsContext.current = ctx
+                for (rect, image) in shots {
+                    let r = view.isFlipped ? NSRect(x: rect.minX, y: view.bounds.height - rect.maxY, width: rect.width, height: rect.height) : rect
+                    image.draw(in: r)
+                }
+            }
+            NSGraphicsContext.restoreGraphicsState()
+            try? rep.representation(using: .png, properties: [:])?.write(to: url)
+            print("snapshot written to \(url.path) (\(shots.count) web views)")
+            NSApp.terminate(nil)
+        }
     }
 
     /// Opens the main window through its Window-menu item if no window is visible.

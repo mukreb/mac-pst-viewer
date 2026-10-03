@@ -83,7 +83,7 @@ struct MessageListView: View {
             TableColumn("", value: \.attachmentSort) { row in
                 RowIcon(row: row)
             }
-            .width(min: 28, ideal: 34, max: 40)
+            .width(min: 28, ideal: 30, max: 40)
 
             TableColumn("Van", value: \.sortFrom) { row in
                 Text(row.from.isEmpty ? "—" : row.from)
@@ -91,7 +91,7 @@ struct MessageListView: View {
                     .lineLimit(1)
                     .help(row.from)
             }
-            .width(min: 100, ideal: 160)
+            .width(min: 80, ideal: 130)
 
             TableColumn("Onderwerp", value: \.sortSubject) { row in
                 VStack(alignment: .leading, spacing: 0) {
@@ -106,21 +106,21 @@ struct MessageListView: View {
                 }
                 .help(row.subject)
             }
-            .width(min: 150, ideal: 300)
+            .width(min: 120, ideal: 210)
 
             TableColumn("Datum", value: \.sortDate) { row in
                 Text(Format.listDate(row.summary.date))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
-            .width(min: 80, ideal: 120)
+            .width(min: 70, ideal: 105)
 
             TableColumn("Grootte", value: \.size) { row in
                 Text(row.size > 0 ? ByteCountFormatter.string(fromByteCount: Int64(row.size), countStyle: .file) : "")
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
-            .width(min: 50, ideal: 70)
+            .width(min: 45, ideal: 58)
         }
         .contextMenu(forSelectionType: MessageRef.self) { refs in
             if refs.count == 1, let ref = refs.first {
