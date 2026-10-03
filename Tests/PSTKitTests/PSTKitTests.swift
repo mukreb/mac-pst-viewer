@@ -149,6 +149,8 @@ final class PSTKitTests: XCTestCase {
         ]
         let out = RTF.decompress(compressed).map { String(decoding: $0, as: UTF8.self) }
         XCTAssertEqual(out, "{\\rtf1\\ansi\\ansicpg1252\\pard hello world}\r\n")
+        // Truncated stream: rejected instead of returning a partial body.
+        XCTAssertNil(RTF.decompress(Array(compressed.prefix(30))))
     }
 
     func testRTFHTMLDeencapsulation() {
@@ -221,7 +223,8 @@ final class PSTKitTests: XCTestCase {
     func testRTFHugeAdvertisedSize() {
         var bytes: [UInt8] = [0x20, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0x7F, 0x4C, 0x5A, 0x46, 0x75, 0, 0, 0, 0]
         bytes += [UInt8](repeating: 0, count: 16)
-        XCTAssertNotNil(RTF.decompress(bytes))
+        // Must neither crash nor allocate the advertised 2 GB; the incomplete stream is rejected.
+        XCTAssertNil(RTF.decompress(bytes))
 
         // A dishonestly small raw size must cap the decoded output during decompression.
         var lying: [UInt8] = [0, 0, 0, 0, 4, 0, 0, 0, 0x4C, 0x5A, 0x46, 0x75, 0, 0, 0, 0]

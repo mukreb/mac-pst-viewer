@@ -78,6 +78,10 @@ public final class Message: @unchecked Sendable {
         for (id, label) in [(PropID.body, "tekst"), (PropID.html, "HTML"), (PropID.rtfCompressed, "RTF")] {
             do { _ = try pc.decodedValue(id) } catch { return "berichttekst (\(label)) kan niet worden gelezen (\(error))" }
         }
+        // Compressed RTF that cannot be fully decompressed would otherwise export truncated.
+        if case .binary(let b)? = pc.value(PropID.rtfCompressed), !b.isEmpty, RTF.decompress(b) == nil {
+            return "berichttekst (RTF) is beschadigd"
+        }
         return nil
     }
 
@@ -162,7 +166,11 @@ public final class Message: @unchecked Sendable {
         guard let sub = table else { return ([], nil) }  // no recipient table
         let tc: TableContext
         do { tc = try TableContext(sub) } catch { return ([], "ontvangerstabel kan niet worden gelezen (\(error))") }
-        let list = tc.rows().enumerated().map { i, row -> Recipient in
+        let rows = tc.rows()
+        if rows.contains(where: { $0.failedCells > 0 }) {
+            return ([], "gegevens van een ontvanger kunnen niet worden gelezen")
+        }
+        let list = rows.enumerated().map { i, row -> Recipient in
             let name = row[PropID.displayName]?.stringValue(codepage: codepage) ?? ""
             var email = row[PropID.smtpAddress]?.stringValue(codepage: codepage) ?? ""
             if email.isEmpty { email = row[PropID.emailAddress]?.stringValue(codepage: codepage) ?? "" }

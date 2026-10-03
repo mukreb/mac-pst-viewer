@@ -222,6 +222,7 @@ struct TableContext {
     func row(_ i: Int) -> TableRow? {
         guard let bytes = rowBytes(i) else { return nil }
         var values: [UInt16: PropertyValue] = [:]
+        var failedCells = 0
         for c in columns {
             let byte = cebOffset + c.bit / 8
             guard byte < bytes.count, bytes[byte] & (0x80 >> UInt8(c.bit % 8)) != 0 else { continue }
@@ -233,7 +234,10 @@ struct TableContext {
                 v = PropertyValue.decodeFixed(type: c.type, bytes: cell)
             case 1, 2, 4:
                 if PropertyValue.isVariable(c.type) {
-                    v = try? PropertyValue.decode(type: c.type, inline: cell.u32(0), heap: heap)
+                    do { v = try PropertyValue.decode(type: c.type, inline: cell.u32(0), heap: heap) } catch {
+                        v = nil
+                        failedCells += 1
+                    }
                 } else {
                     var padded = cell
                     padded.append(contentsOf: [UInt8](repeating: 0, count: 8 - cell.count))
@@ -245,7 +249,7 @@ struct TableContext {
             if let v { values[c.id] = v }
         }
         let rowID = bytes.u32(0)
-        return TableRow(rowID: rowID, values: values)
+        return TableRow(rowID: rowID, values: values, failedCells: failedCells)
     }
 
     func rows() -> [TableRow] {
@@ -256,5 +260,7 @@ struct TableContext {
 struct TableRow {
     let rowID: UInt32
     let values: [UInt16: PropertyValue]
+    /// Number of present cells whose value could not be decoded (e.g. a dangling HNID).
+    var failedCells = 0
     subscript(_ id: UInt16) -> PropertyValue? { values[id] }
 }

@@ -12,6 +12,7 @@ public enum RTF {
         let magic = input.u32(8)
         guard rawSize >= 0, compSize >= 0 else { return nil }
         if magic == 0x414C_454D { // "MELA": stored uncompressed
+            guard input.count - 16 >= rawSize else { return nil }  // truncated
             return input.slice(16, rawSize)
         }
         guard magic == 0x7546_5A4C else { return nil } // "LZFu"
@@ -52,6 +53,8 @@ public enum RTF {
                 }
             }
         }
+        // A truncated or damaged stream must not pass for a complete body.
+        if rawSize > 0 && out.count != rawSize { return nil }
         return out
     }
 
