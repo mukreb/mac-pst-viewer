@@ -1,0 +1,52 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Test PSTKit
+        run: swift test
+      - name: Build app bundle (native, as a user would)
+        run: /bin/bash ./scripts/build-app.sh
+      - name: Build app bundle (universal)
+        run: ./scripts/build-app.sh universal
+      - name: Smoke test pstdump
+        run: swift run -c release pstdump Tests/PSTKitTests/Fixtures/tika-ansi-high.pst --messages
+      - name: Screenshots
+        timeout-minutes: 4
+        continue-on-error: true
+        run: |
+          APP="dist/PST Viewer.app/Contents/MacOS/PSTViewer"
+          "$APP" --snapshot "$PWD/dist/screenshot-welcome.png" < /dev/null
+          # Same route as a Finder double-click:
+          open -W -a "$PWD/dist/PST Viewer.app" "$PWD/Tests/PSTKitTests/Fixtures/tika-testPST.pst" --args --demo --snapshot "$PWD/dist/screenshot-viewer.png"
+          "$APP" "$PWD/Tests/PSTKitTests/Fixtures/dist-list-ansi.pst" --demo --snapshot "$PWD/dist/screenshot-ansi.png" < /dev/null
+          "$APP" --settings --snapshot "$PWD/dist/screenshot-settings.png" < /dev/null
+      - name: Zip app
+        run: cd dist && ditto -c -k --keepParent "PST Viewer.app" PST-Viewer.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PST-Viewer-macOS
+          path: dist/PST-Viewer.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: dist/screenshot-*.png
+          if-no-files-found: ignore
+
+  linux:
+    runs-on: ubuntu-latest
+    container: swift:6.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test PSTKit
+        run: swift test
