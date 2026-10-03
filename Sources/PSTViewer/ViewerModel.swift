@@ -340,13 +340,17 @@ final class ViewerModel: ObservableObject {
                     if matches(row, file: s.file) { results.append(row) }
                 }
             case .all:
+                var seen = Set<MessageRef>()
                 for s in stores {
                     for node in s.allNodes {
                         if Task.isCancelled { return }
                         let summaries = (try? s.file.messages(in: node.ref.nid)) ?? []
                         for sum in summaries {
                             if Task.isCancelled { return }
-                            let row = MessageRow(ref: MessageRef(store: s.id, nid: sum.nid), summary: sum, folderName: node.name)
+                            let ref = MessageRef(store: s.id, nid: sum.nid)
+                            // Search folders list messages that also live in their real folder.
+                            guard seen.insert(ref).inserted else { continue }
+                            let row = MessageRow(ref: ref, summary: sum, folderName: node.name)
                             if matches(row, file: s.file) { results.append(row) }
                         }
                         let partial = results

@@ -180,7 +180,11 @@ public final class Message: @unchecked Sendable {
     public var attachmentErrors: [String] { attachmentLoad.errors }
 
     private lazy var attachmentLoad: (list: [Attachment], errors: [String]) = {
-        guard let sub = try? node.subnode(0x671) else { return ([], []) }
+        let table: NodeRef?
+        do { table = try node.subnode(0x671) } catch {
+            return ([], ["bijlagen kunnen niet worden gevonden (\(error))"])
+        }
+        guard let sub = table else { return ([], []) }  // no attachment table: no attachments
         guard let tc = try? TableContext(sub) else { return ([], ["bijlagentabel kan niet worden gelezen"]) }
         var result: [Attachment] = []
         var errors: [String] = []
