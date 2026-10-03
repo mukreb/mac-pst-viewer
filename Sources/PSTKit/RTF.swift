@@ -16,6 +16,9 @@ public enum RTF {
             return input.slice(16, rawSize)
         }
         guard magic == 0x7546_5A4C else { return nil } // "LZFu"
+        // The CRC covers everything after the 16-byte header; a mismatch means altered data.
+        guard compSize >= 12, input.count >= compSize + 4,
+              crc32(input[16..<(compSize + 4)]) == input.u32(12) else { return nil }
         var dict = [UInt8](repeating: 0, count: 4096)
         for (i, b) in prebuf.enumerated() { dict[i] = b }
         var writePos = prebuf.count
@@ -56,6 +59,19 @@ public enum RTF {
         // A truncated or damaged stream must not pass for a complete body.
         if rawSize > 0 && out.count != rawSize { return nil }
         return out
+    }
+
+    private static let crcTable: [UInt32] = (0..<256).map { n -> UInt32 in
+        var c = UInt32(n)
+        for _ in 0..<8 { c = c & 1 != 0 ? 0xEDB8_8320 ^ (c >> 1) : c >> 1 }
+        return c
+    }
+
+    /// CRC-32 as defined by [MS-OXRTFCP] 2.1.3.2: the standard table, initial value 0, no final XOR.
+    static func crc32(_ bytes: ArraySlice<UInt8>) -> UInt32 {
+        var crc: UInt32 = 0
+        for b in bytes { crc = crcTable[Int((crc ^ UInt32(b)) & 0xFF)] ^ (crc >> 8) }
+        return crc
     }
 
     /// True when the RTF was generated from HTML ([MS-OXRTFEX]).

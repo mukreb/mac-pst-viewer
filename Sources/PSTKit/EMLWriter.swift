@@ -68,9 +68,13 @@ public enum EMLWriter {
                     out += String(decoding: try eml(for: em, depth: depth + 1), as: UTF8.self)
                 } else if a.isExternalReference {
                     // The PST only holds a link to a file elsewhere: say so instead of an empty file.
+                    // Base64 like every other UTF-8 part: the name may be non-ASCII or very long.
+                    let note = "Deze bijlage (\(flat(a.filename))) was een koppeling naar een extern bestand en zit niet in het PST-bestand.\r\n"
                     out += "Content-Type: text/plain; charset=utf-8; \(mimeParam("name", a.filename + ".txt"))\r\n"
+                    out += "Content-Transfer-Encoding: base64\r\n"
                     out += "Content-Disposition: attachment; \(mimeParam("filename", a.filename + ".txt"))\r\n\r\n"
-                    out += "Deze bijlage (\(flat(a.filename))) was een koppeling naar een extern bestand en zit niet in het PST-bestand.\r\n"
+                    out += Data(note.utf8).base64EncodedString(options: [.lineLength76Characters, .endLineWithCarriageReturn, .endLineWithLineFeed])
+                    out += "\r\n"
                 } else {
                     // Fail loudly rather than export a silently empty attachment.
                     let data: Data
