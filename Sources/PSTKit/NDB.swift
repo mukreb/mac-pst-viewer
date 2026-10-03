@@ -164,7 +164,10 @@ final class NDB: @unchecked Sendable {
 
         guard let entry = blocks[key] else { throw PSTError.notFound(String(format: "blok 0x%llx", bid)) }
         let size = Int(entry.cb)
-        guard entry.ib + UInt64(size) <= UInt64(data.count) else { throw PSTError.corrupt("blok buiten bestand") }
+        // Compare without adding file-controlled values (a crafted offset must not overflow).
+        guard entry.ib <= UInt64(data.count), UInt64(size) <= UInt64(data.count) - entry.ib else {
+            throw PSTError.corrupt("blok buiten bestand")
+        }
         var bytes = data.bytes(at: Int(entry.ib), count: size)
 
         let isInternal = (bid & 0x2) != 0

@@ -46,9 +46,12 @@ public enum EMLWriter {
             out += "--\(boundaryMixed)\r\n" + bodyPart
             for a in attachments {
                 out += "\r\n--\(boundaryMixed)\r\n"
-                if a.isEmbeddedMessage, let em = try? m.embeddedMessage(a) {
+                if a.isEmbeddedMessage {
+                    guard let em = try m.embeddedMessage(a) else {
+                        throw PSTError.corrupt("bijgevoegd bericht '\(a.filename)' kan niet worden gelezen")
+                    }
                     out += "Content-Type: message/rfc822\r\n"
-                    out += "Content-Disposition: attachment; filename=\(quotedParam(safeName(a.filename) + ".eml"))\r\n\r\n"
+                    out += "Content-Disposition: attachment; \(mimeParam("filename", safeName(a.filename) + ".eml"))\r\n\r\n"
                     out += String(decoding: try eml(for: em), as: UTF8.self)
                 } else {
                     // Fail loudly rather than export a silently empty attachment.
@@ -58,12 +61,12 @@ public enum EMLWriter {
                     }
                     let mimeTag = a.mimeType.components(separatedBy: .whitespacesAndNewlines).joined()
                     let mime = mimeTag.contains("/") ? mimeTag : "application/octet-stream"
-                    out += "Content-Type: \(mime); name=\(quotedParam(a.filename))\r\n"
+                    out += "Content-Type: \(mime); \(mimeParam("name", a.filename))\r\n"
                     out += "Content-Transfer-Encoding: base64\r\n"
                     let cid = a.contentID.components(separatedBy: .whitespacesAndNewlines).joined()
                         .trimmingCharacters(in: CharacterSet(charactersIn: "<>"))
                     if !cid.isEmpty { out += "Content-ID: <\(cid)>\r\n" }
-                    out += "Content-Disposition: \(a.contentID.isEmpty ? "attachment" : "inline"); filename=\(quotedParam(a.filename))\r\n\r\n"
+                    out += "Content-Disposition: \(a.contentID.isEmpty ? "attachment" : "inline"); \(mimeParam("filename", a.filename))\r\n\r\n"
                     out += data.base64EncodedString(options: [.lineLength76Characters, .endLineWithCarriageReturn, .endLineWithLineFeed])
                     out += "\r\n"
                 }
@@ -149,15 +152,24 @@ public enum EMLWriter {
         return "\(displayName) <\(email)>"
     }
 
-    /// A MIME parameter value as a quoted string (RFC 2045/2047), safe against quotes and line breaks.
+    /// An ASCII MIME parameter value as a quoted string, safe against quotes and line breaks.
     static func quotedParam(_ value: String) -> String {
-        let flat = value.components(separatedBy: .newlines).joined(separator: " ")
-        if flat.unicodeScalars.allSatisfy({ $0.isASCII }) {
-            let escaped = flat.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-            return "\"\(escaped)\""
-        }
-        // Encoded words never contain quotes or backslashes.
-        return "\"\(encodeWord(flat).replacingOccurrences(of: "\r\n ", with: " "))\""
+        let escaped = flat(value).replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
+    }
+
+    /// `key="value"`, or for non-ASCII values an ASCII fallback plus an RFC 2231 extended
+    /// parameter (`key*=utf-8''…`), since RFC 2047 encoded words are not allowed in parameters.
+    static func mimeParam(_ key: String, _ value: String) -> String {
+        let v = flat(value)
+        if v.unicodeScalars.allSatisfy({ $0.isASCII }) { return "\(key)=\(quotedParam(v))" }
+        let fallback = String(v.unicodeScalars.map { $0.isASCII ? Character($0) : "_" })
+        let attrChar = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$&+-.^_`|~")
+        let encoded = v.utf8.map { b -> String in
+            let s = Unicode.Scalar(b)
+            return b < 0x80 && attrChar.contains(s) ? String(Character(s)) : String(format: "%%%02X", b)
+        }.joined()
+        return "\(key)=\(quotedParam(fallback)); \(key)*=utf-8''\(encoded)"
     }
 
     /// RFC 2047 encoded-word for non-ASCII header values.

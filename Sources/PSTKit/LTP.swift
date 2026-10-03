@@ -37,8 +37,10 @@ struct Heap {
     /// Returns the bytes of a heap allocation.
     func item(_ hid: UInt32) -> [UInt8]? {
         guard hid != 0, hid & 0x1F == 0 else { return nil }
-        let index = Int((hid >> 5) & 0x7FF)
-        let blockIndex = Int(hid >> 16)
+        // Outlook 2013 (4K) OSTs use a 14-bit item index and a 13-bit block index (cf. libpff).
+        let is4K = node.ndb.format == .unicode4K
+        let index = Int(is4K ? (hid >> 5) & 0x3FFF : (hid >> 5) & 0x7FF)
+        let blockIndex = Int(is4K ? hid >> 19 : hid >> 16)
         guard index > 0, blockIndex < pages.count else { return nil }
         let page = pages[blockIndex]
         let mapOffset = Int(page.u16(0))

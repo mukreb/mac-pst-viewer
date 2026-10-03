@@ -201,6 +201,9 @@ final class PSTKitTests: XCTestCase {
     func testQuotedParam() {
         XCTAssertEqual(EMLWriter.quotedParam("report \"final\".pdf"), "\"report \\\"final\\\".pdf\"")
         XCTAssertFalse(EMLWriter.quotedParam("a\r\nX-Evil: 1.txt").contains("\n"))
+        XCTAssertEqual(EMLWriter.mimeParam("filename", "résumé.pdf"),
+                       "filename=\"r_sum_.pdf\"; filename*=utf-8''r%C3%A9sum%C3%A9.pdf")
+        XCTAssertEqual(EMLWriter.mimeParam("name", "a b.txt"), "name=\"a b.txt\"")
     }
 
     func testRTFHugeAdvertisedSize() {
