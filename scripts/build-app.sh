@@ -13,8 +13,8 @@ if [[ "${1:-}" == "universal" ]]; then
 fi
 
 echo "▸ Compileren (release)…"
-swift build -c release --product PSTViewer "${ARCH_FLAGS[@]}"
-BIN_DIR="$(swift build -c release --product PSTViewer "${ARCH_FLAGS[@]}" --show-bin-path)"
+swift build -c release --product PSTViewer ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
+BIN_DIR="$(swift build -c release --product PSTViewer ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)"
 
 echo "▸ App-bundel samenstellen…"
 rm -rf "$APP"
