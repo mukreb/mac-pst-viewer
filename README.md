@@ -1,6 +1,6 @@
 # PST Viewer for macOS
 
-A simple, fast viewer for Outlook archives (`.pst` and `.ost`) on the Mac — no Outlook, no conversion, read-only. Built for old archives, but works with new ones too.
+A simple, fast viewer for Outlook archives (`.pst` and `.ost`) and old mbox mail (Netscape, Mozilla, Thunderbird) on the Mac — no Outlook, no conversion, read-only. Built for old archives, but works with new ones too.
 
 ![PST Viewer with an open archive](docs/screenshot-viewer.png)
 
@@ -8,6 +8,7 @@ A simple, fast viewer for Outlook archives (`.pst` and `.ost`) on the Mac — no
 
 - **All PST formats**: ANSI (Outlook 97–2002, the old 2 GB files), Unicode (Outlook 2003 and later) and OST (including the Outlook 2013+ variant with 4K pages and compression).
 - **All PST encryption types** (none, "compressible" and "high").
+- **Mbox mail folders**: open a folder of mail from Netscape Communicator, Mozilla or Thunderbird and browse it with the same interface. See [Old mbox mail](#old-mbox-mail-netscape-thunderbird).
 - **Three columns** like Outlook and Mail: folder tree → message list → preview.
 - **Several files at once** in the sidebar, each listed under its file name.
 - **Messages** in HTML, RTF (old Outlook messages) or plain text, with embedded images (`cid:`).
@@ -39,7 +40,7 @@ cd mac-pst-viewer
 open "dist/PST Viewer.app"
 ```
 
-Then drag `dist/PST Viewer.app` to your Applications folder. You can open a `.pst` via **File → Open PST File…** (⌘O), by dragging the file onto the window, or with "Open With" in the Finder.
+Then drag `dist/PST Viewer.app` to your Applications folder. You can open a `.pst` via **File → Open PST File or Mail Folder…** (⌘O), by dragging the file onto the window, or with "Open With" in the Finder.
 
 ### Option 2: ready-made download
 
@@ -59,12 +60,27 @@ Open **PST Viewer → Settings…** (⌘,) for:
 
 <img src="docs/screenshot-settings.png" alt="Settings window" width="520">
 
+## Old mbox mail (Netscape, Thunderbird)
+
+Netscape Communicator 4.x, Mozilla and Thunderbird keep every mail folder as an **mbox** file without an extension (`Inbox`, `Sent`, `Trash`, …). Subfolders of a folder `Projects` are in a directory `Projects.sbd`. The `.snm` (Netscape) and `.msf` (Mozilla, Thunderbird) files next to them are summary indexes; PST Viewer doesn't need them.
+
+To view such an archive, choose **File → Open PST File or Mail Folder…** and select the folder that contains `Inbox`, `Sent` and the other files, or drag that folder onto the window. The folder tree, message list, search, attachments and export then work as for a PST file. You can also open a single mbox file, an Apple Mail export (`Name.mbox`) or a folder that contains several such archives.
+
+Details:
+
+- **Deleted messages**: Netscape didn't remove deleted messages from the file straight away, it only marked them (until you "compacted" the folder). Those messages are hidden; **File Info** shows how many there are.
+- **Read/unread** comes from Netscape's `X-Mozilla-Status` header, or from the `Status` header of other mail programs.
+- **Attachments** in MIME messages as well as old uuencoded attachments (`begin 644 …`) are shown as attachments. Forwarded messages (`message/rfc822`) can be opened in turn.
+- **Character sets**: headers and texts in old mail often contain unmarked 8-bit text; for those the default character set from Settings is used.
+- **Export** to `.eml` writes the original message byte for byte.
+
 ## Command line
 
-There's also a small tool, `pstdump` (works on macOS and Linux):
+There's also a small tool, `pstdump` (works on macOS and Linux). It also reads mbox files and mail folders:
 
 ```bash
 swift run pstdump archive.pst              # folder tree with counts
+swift run pstdump "Netscape Mail" --messages   # an mbox mail folder
 swift run pstdump archive.pst --messages   # folders + message list
 swift run pstdump archive.pst --show 0x200024   # a single message
 swift run pstdump archive.pst --eml 0x200024 > message.eml
@@ -82,6 +98,9 @@ swift run pstdump archive.pst --eml 0x200024 > message.eml
 | `RTF.swift` | LZFu decompression, extracting HTML from RTF, RTF → text |
 | `Inflate.swift` | Deflate decoder for compressed OST 2013 blocks |
 | `EMLWriter.swift` | Export to `.eml` and `.mbox` |
+| `MailStore.swift` | The interface the app uses for both PST files and mbox archives |
+| `Mbox.swift` | Mbox files and Netscape/Thunderbird folder trees (`.sbd`) |
+| `MIME.swift`, `MIMEContent.swift` | MIME parser (multipart, base64, quoted-printable, RFC 2047/2231, uuencode) |
 | `Localization.swift` | English/Dutch texts (`tr("English", "Nederlands")`) |
 
 The app itself (`Sources/PSTViewer`) is SwiftUI.
@@ -94,7 +113,7 @@ The file is opened memory-mapped and never modified.
 swift test
 ```
 
-The tests run against real PST files in `Tests/PSTKitTests/Fixtures` (see the README there for their origin). Because there are hardly any public ANSI sample files, `scripts/make_ansi_pst.py` converts a Unicode PST into a genuine ANSI file; the result has been verified with the independent libpff library.
+The tests run against real PST files in `Tests/PSTKitTests/Fixtures` (see the README there for their origin) and a Netscape-style mail folder generated by `scripts/make_mbox_fixture.py`. Because there are hardly any public ANSI sample files, `scripts/make_ansi_pst.py` converts a Unicode PST into a genuine ANSI file; the result has been verified with the independent libpff library.
 
 ## License
 

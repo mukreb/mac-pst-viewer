@@ -117,21 +117,30 @@ struct BTH {
 
 /// Property Context ([MS-PST] 2.3.3): the property bag of a folder, message, attachment, ...
 public struct PropertyContext {
-    let heap: Heap
+    let heap: Heap?
     let entries: [UInt16: (type: UInt16, raw: UInt32)]
+    /// Properties that don't come from a PST heap (messages read from mbox files).
+    let synthetic: [UInt16: Property]
 
     init(_ node: NodeRef) throws {
         heap = try Heap(node)
-        guard heap.clientSig == 0xBC else { throw PSTError.corrupt(tr("not a property context", "geen property context")) }
-        let bth = try BTH(heap: heap, header: heap.userRoot)
+        guard heap!.clientSig == 0xBC else { throw PSTError.corrupt(tr("not a property context", "geen property context")) }
+        let bth = try BTH(heap: heap!, header: heap!.userRoot)
         var e: [UInt16: (type: UInt16, raw: UInt32)] = [:]
         for r in bth.records() where r.key.count == 2 && r.data.count >= 6 {
             e[r.key.u16(0)] = (r.data.u16(0), r.data.u32(2))
         }
         entries = e
+        synthetic = [:]
     }
 
-    var propertyIDs: [UInt16] { entries.keys.sorted() }
+    init(properties: [Property]) {
+        heap = nil
+        entries = [:]
+        synthetic = Dictionary(properties.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+    }
+
+    var propertyIDs: [UInt16] { heap == nil ? synthetic.keys.sorted() : entries.keys.sorted() }
 
     func value(_ id: UInt16) -> PropertyValue? {
         try? decodedValue(id)
@@ -140,12 +149,14 @@ public struct PropertyContext {
     /// Like `value(_:)`, but a property that exists and cannot be decoded throws instead of
     /// looking absent (used where silently losing data would be wrong, e.g. exports).
     func decodedValue(_ id: UInt16) throws -> PropertyValue? {
+        guard let heap else { return synthetic[id]?.value }
         guard let e = entries[id] else { return nil }
         return try PropertyValue.decode(type: e.type, inline: e.raw, heap: heap)
     }
 
     func all() -> [Property] {
-        propertyIDs.compactMap { id in
+        guard let heap else { return propertyIDs.compactMap { synthetic[$0] } }
+        return propertyIDs.compactMap { id in
             guard let e = entries[id] else { return nil }
             let v = (try? PropertyValue.decode(type: e.type, inline: e.raw, heap: heap)) ?? .error(0)
             return Property(id: id, type: e.type, value: v)

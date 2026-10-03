@@ -22,20 +22,54 @@ public struct Attachment: Identifiable, Hashable, Sendable {
     public let mimeType: String
     public let contentID: String
     public let isHidden: Bool
-    let node: NodeRef
+    let node: NodeRef?
     let embeddedNID: UInt32?
+    /// Content of attachments read from MIME messages (mbox files) instead of a PST node.
+    var payload: MIMEPayload? = nil
 
-    public var isEmbeddedMessage: Bool { method == 5 && embeddedNID != nil }
+    public var isEmbeddedMessage: Bool { (method == 5 && embeddedNID != nil) || payload?.embedded != nil }
     /// Attach-by-reference (methods 2, 3, 4, 7): only a link to a file outside the PST.
     public var isExternalReference: Bool { [2, 3, 4, 7].contains(method) }
 
     var embeddedNode: NodeRef? {
         guard let nid = embeddedNID else { return nil }
-        return try? node.subnode(nid)
+        return try? node?.subnode(nid)
     }
 
-    public static func == (a: Attachment, b: Attachment) -> Bool { a.id == b.id && a.node.bidData == b.node.bidData }
-    public func hash(into h: inout Hasher) { h.combine(id); h.combine(node.bidData) }
+    public static func == (a: Attachment, b: Attachment) -> Bool {
+        a.id == b.id && a.node?.bidData == b.node?.bidData && a.payload === b.payload
+    }
+    public func hash(into h: inout Hasher) {
+        h.combine(id)
+        h.combine(node?.bidData)
+        if let payload { h.combine(ObjectIdentifier(payload)) }
+    }
+}
+
+/// The content of an attachment that comes from a MIME part (or a uuencoded block).
+final class MIMEPayload: @unchecked Sendable {
+    private let part: MIMEPart?
+    private let bytes: [UInt8]?
+    /// The message inside a `message/rfc822` part.
+    let embedded: MIMEPart?
+
+    init(part: MIMEPart) {
+        self.part = part
+        bytes = nil
+        embedded = part.contentType == "message/rfc822" ? part.encapsulated : nil
+    }
+
+    init(bytes: [UInt8]) {
+        part = nil
+        self.bytes = bytes
+        embedded = nil
+    }
+
+    var data: [UInt8] {
+        if let bytes { return bytes }
+        if let embedded { return Array(embedded.source) }
+        return part?.decodedBody ?? []
+    }
 }
 
 extension NodeRef: @unchecked Sendable {}
@@ -49,10 +83,14 @@ public enum MessageBody {
 /// A fully loaded message (or contact, appointment, ...).
 public final class Message: @unchecked Sendable {
     public let nid: UInt32
-    let file: PSTFile
-    let node: NodeRef
+    let file: PSTFile?
+    let node: NodeRef?
     let pc: PropertyContext
     public let codepage: Int
+    /// Set for messages read from mbox files.
+    let mime: MIMEContent?
+    /// The original message as stored in an mbox file (exported as is).
+    public let rawMIME: [UInt8]?
 
     init(file: PSTFile, node: NodeRef) throws {
         self.file = file
@@ -62,6 +100,24 @@ public final class Message: @unchecked Sendable {
         codepage = Int(pc.value(PropID.messageCodepage)?.intValue
             ?? pc.value(PropID.internetCodepage)?.intValue
             ?? Int64(PSTText.defaultCodepage))
+        mime = nil
+        rawMIME = nil
+    }
+
+    /// A message read from an mbox file; `raw` is the message without the mbox "From " line.
+    convenience init(nid: UInt32, raw: [UInt8], flags: Int = 0x01) {
+        self.init(nid: nid, part: MIMEPart(ArraySlice(MIME.normalizeLineEndings(raw))), raw: raw, flags: flags)
+    }
+
+    init(nid: UInt32, part: MIMEPart, raw: [UInt8], flags: Int = 0x01) {
+        self.nid = nid
+        file = nil
+        node = nil
+        let content = MIMEContent(part)
+        mime = content
+        rawMIME = raw
+        codepage = 65001
+        pc = PropertyContext(properties: content.properties(size: raw.count, flags: flags))
     }
 
     func string(_ id: UInt16) -> String {
@@ -71,7 +127,7 @@ public final class Message: @unchecked Sendable {
     public func value(_ id: UInt16) -> PropertyValue? { pc.value(id) }
 
     public func named(_ guid: String, _ lid: UInt32) -> PropertyValue? {
-        guard let id = file.namedID(guid, lid) else { return nil }
+        guard let id = file?.namedID(guid, lid) else { return nil }
         return pc.value(id)
     }
 
@@ -163,6 +219,8 @@ public final class Message: @unchecked Sendable {
     public var recipientError: String? { recipientLoad.error }
 
     private lazy var recipientLoad: (list: [Recipient], error: String?) = {
+        if let mime { return (mime.recipients, nil) }
+        guard let node else { return ([], nil) }
         let table: NodeRef?
         do { table = try node.subnode(0x692) } catch { return ([], tr("recipients cannot be found (\(error))", "ontvangers kunnen niet worden gevonden (\(error))")) }
         guard let sub = table else { return ([], nil) }  // no recipient table
@@ -209,6 +267,8 @@ public final class Message: @unchecked Sendable {
     public var attachmentErrors: [String] { attachmentLoad.errors }
 
     private lazy var attachmentLoad: (list: [Attachment], errors: [String]) = {
+        if let mime { return (mime.attachments, []) }
+        guard let node else { return ([], []) }
         let table: NodeRef?
         do { table = try node.subnode(0x671) } catch {
             return ([], [tr("attachments cannot be found (\(error))", "bijlagen kunnen niet worden gevonden (\(error))")])
@@ -250,11 +310,16 @@ public final class Message: @unchecked Sendable {
     }()
 
     public func data(for attachment: Attachment) throws -> Data {
-        try file.attachmentData(attachment)
+        if let payload = attachment.payload { return Data(payload.data) }
+        guard let file else { throw PSTError.notFound(attachment.filename) }
+        return try file.attachmentData(attachment)
     }
 
     public func embeddedMessage(_ attachment: Attachment) throws -> Message? {
-        guard let n = attachment.embeddedNode else { return nil }
+        if let part = attachment.payload?.embedded {
+            return Message(nid: attachment.id, part: part, raw: Array(part.source))
+        }
+        guard let file, let n = attachment.embeddedNode else { return nil }
         return try Message(file: file, node: n)
     }
 
@@ -302,7 +367,7 @@ public final class Message: @unchecked Sendable {
 
     public var allProperties: [Property] { pc.all() }
 
-    public func propertyName(_ id: UInt16) -> String { file.propertyName(id) }
+    public func propertyName(_ id: UInt16) -> String { file?.propertyName(id) ?? PropertyNames.name(for: id) }
 
     /// Type-specific fields (contacts, appointments, tasks) as label/value pairs.
     public var details: [(String, String)] {

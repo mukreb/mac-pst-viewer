@@ -1,0 +1,78 @@
+From - Thu Nov 04 10:15:00 1999
+X-Mozilla-Status: 0001
+X-Mozilla-Status2: 00000000
+Return-Path: <jan@example.nl>
+Message-ID: <38214A1B.1@example.nl>
+Date: Thu, 04 Nov 1999 10:14:51 +0100
+From: Jan de Vries <jan@example.nl>
+To: mvberkum@example.nl, "Berg, Piet" <piet@example.nl>
+Subject: =?iso-8859-1?Q?Caf=E9_morgen?=
+Mime-Version: 1.0
+Content-Type: text/plain; charset=iso-8859-1
+Content-Transfer-Encoding: quoted-printable
+
+Zullen we morgen naar het caf=E9 gaan?
+Groet, Jan
+
+From - Wed Nov 03 09:00:00 1999
+X-Mozilla-Status: 0000
+X-Mozilla-Status2: 00000000
+Message-ID: <38214A1B.2@example.com>
+Date: Wed, 3 Nov 1999 08:59:10 -0500
+From: anna@example.com (Anna Smith)
+To: mvberkum@example.nl
+Subject: Report with attachment
+X-Priority: 1 (Highest)
+Content-Type: multipart/mixed; boundary="------------ABC123"
+
+This is a multi-part message in MIME format.
+--------------ABC123
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+Here is the report.
+>From the start it was clear.
+From here on it gets better, at 10:30 or so.
+Bye
+--------------ABC123
+Content-Type: text/plain; charset=us-ascii; name="hello.txt"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="hello.txt"
+
+SGVsbG8sIHdvcmxkIQo=
+--------------ABC123--
+
+
+From - Tue Nov 02 12:00:00 1999
+X-Mozilla-Status: 0009
+X-Mozilla-Status2: 00000000
+Date: Tue, 2 Nov 1999 12:00:00 +0100
+From: spam@example.org
+To: mvberkum@example.nl
+Subject: Deleted message
+
+This one was deleted in Netscape but the folder was never compacted.
+
+From - Mon Nov 01 08:00:00 1999
+X-Mozilla-Status: 0001
+X-Mozilla-Status2: 00000000
+Date: 1 Nov 99 07:59 MET
+From: René Janssen <rene@example.nl>
+To: mvberkum@example.nl
+Subject: HTML mail
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="alt"
+
+--alt
+Content-Type: text/plain; charset=iso-8859-1
+Content-Transfer-Encoding: 8bit
+
+Dit is HTML-mail van René.
+--alt
+Content-Type: text/html; charset=iso-8859-1
+Content-Transfer-Encoding: 8bit
+
+<html><body><b>Dit is HTML-mail van René.</b></body></html>
+--alt--
+
+

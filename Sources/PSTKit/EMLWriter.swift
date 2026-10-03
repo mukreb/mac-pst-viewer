@@ -9,6 +9,8 @@ public enum EMLWriter {
     /// `depth` limits nested embedded messages, so a corrupt file whose attachments point back
     /// to their own message cannot recurse forever.
     static func eml(for m: Message, depth: Int) throws -> Data {
+        // Messages from mbox files are already RFC 822: keep them byte for byte.
+        if let raw = m.rawMIME { return Data(raw) }
         guard depth < 16 else { throw PSTError.corrupt(tr("attached messages nested too deeply", "te diep geneste bijgevoegde berichten")) }
         if let problem = m.recipientError ?? m.bodyError { throw PSTError.corrupt("\(m.subject): \(problem)") }
         var out = ""
@@ -101,23 +103,22 @@ public enum EMLWriter {
 
     /// Appends messages to mbox format (mboxrd quoting).
     public static func mboxEntry(for m: Message) throws -> Data {
-        let eml = String(decoding: try eml(for: m), as: UTF8.self)
+        let eml = MIME.normalizeLineEndings(try eml(for: m))
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
         df.timeZone = TimeZone(identifier: "UTC")
         df.dateFormat = "EEE MMM dd HH:mm:ss yyyy"
         let email = addrSpec(m.fromEmail)
         let sender = email.contains("@") ? email : "MAILER-DAEMON"
-        var out = "From \(sender) \(df.string(from: m.date ?? Date(timeIntervalSince1970: 0)))\n"
-        for line in eml.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n") {
-            var l = line
-            var probe = Substring(l)
-            while probe.hasPrefix(">") { probe = probe.dropFirst() }
-            if probe.hasPrefix("From ") { l = ">" + l }
-            out += l + "\n"
+        var out = Data("From \(sender) \(df.string(from: m.date ?? Date(timeIntervalSince1970: 0)))\n".utf8)
+        out.reserveCapacity(eml.count + 256)
+        for line in eml.split(separator: 0x0A, omittingEmptySubsequences: false) {
+            if line.drop(while: { $0 == 0x3E }).starts(with: Array("From ".utf8)) { out.append(0x3E) }
+            out.append(contentsOf: line)
+            out.append(0x0A)
         }
-        out += "\n"
-        return Data(out.utf8)
+        out.append(0x0A)
+        return out
     }
 
     public static func safeName(_ s: String) -> String {

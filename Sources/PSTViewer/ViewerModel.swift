@@ -27,10 +27,10 @@ struct FolderNode: Identifiable, Hashable {
     var showsRecipients: Bool { [FolderKind.sent, .outbox, .drafts].contains(folder.kind) }
 }
 
-/// One opened PST/OST file.
+/// One opened PST/OST file or mbox mail folder.
 final class OpenStore: Identifiable {
     let id = UUID()
-    let file: PSTFile
+    let file: any MailStore
     let root: Folder
     /// Folders shown in the sidebar (the IPM subtree when present).
     let nodes: [FolderNode]
@@ -38,6 +38,9 @@ final class OpenStore: Identifiable {
 
     /// The file name shown in the sidebar, e.g. "archive-2009.pst".
     var fileName: String { file.url.lastPathComponent }
+
+    /// An mbox archive (Netscape, Thunderbird, …) rather than an Outlook file.
+    var isMbox: Bool { !(file is PSTFile) }
 
     /// The store's internal name ("Personal Folders", …) when it adds something to the file name.
     var storeNameIfDifferent: String? {
@@ -47,7 +50,7 @@ final class OpenStore: Identifiable {
         return name
     }
 
-    init(file: PSTFile, root: Folder, showSystemFolders: Bool) {
+    init(file: any MailStore, root: Folder, showSystemFolders: Bool) {
         self.file = file
         self.root = root
         let id = self.id
@@ -63,7 +66,7 @@ final class OpenStore: Identifiable {
         var top: [FolderNode] = []
         for child in root.children {
             guard let node = build(child) else { continue }
-            if OpenStore.isIPMSubtree(child) {
+            if file is PSTFile, OpenStore.isIPMSubtree(child) {
                 if child.contentCount > 0 {
                     top.append(FolderNode(ref: node.ref, folder: child, children: nil))
                 }
@@ -198,11 +201,13 @@ final class ViewerModel: ObservableObject {
 
     func showOpenPanel() {
         let panel = NSOpenPanel()
-        panel.title = tr("Open PST or OST File", "Open PST- of OST-bestand")
+        panel.title = tr("Open PST File or Mail Folder", "Open PST-bestand of mailmap")
+        panel.message = tr("Choose a .pst or .ost file, an mbox file, or a folder of mbox files (for example from Netscape or Thunderbird).",
+                           "Kies een .pst- of .ost-bestand, een mbox-bestand, of een map met mbox-bestanden (bijvoorbeeld van Netscape of Thunderbird).")
         panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.allowedContentTypes = PSTTypes.all
-        panel.allowsOtherFileTypes = true
+        // Mbox files have no fixed extension (Netscape's are called "Inbox", "Sent", …).
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
         if panel.runModal() == .OK {
             for url in panel.urls { open(url) }
         }
@@ -213,7 +218,8 @@ final class ViewerModel: ObservableObject {
     func open(_ url: URL) {
         let key = url.standardizedFileURL
         guard !opening.contains(key) else { return }
-        if let existing = stores.first(where: { $0.file.url.standardizedFileURL == url.standardizedFileURL }) {
+        // Compare paths: a folder URL may or may not end in "/".
+        if let existing = stores.first(where: { $0.file.url.standardizedFileURL.path == url.standardizedFileURL.path }) {
             selectFirstFolder(of: existing)
             return
         }
@@ -224,7 +230,7 @@ final class ViewerModel: ObservableObject {
         Task.detached(priority: .userInitiated) {
             let accessing = url.startAccessingSecurityScopedResource()
             do {
-                let file = try PSTFile(url: url)
+                let file = try MailStores.open(url)
                 let root = try file.rootFolder()
                 let store = OpenStore(file: file, root: root, showSystemFolders: showSystem)
                 await MainActor.run {
@@ -365,7 +371,7 @@ final class ViewerModel: ObservableObject {
             var unreadable: [String] = []
             var unreadableMessages = 0
 
-            func matches(_ row: MessageRow, file: PSTFile) -> Bool {
+            func matches(_ row: MessageRow, file: any MailStore) -> Bool {
                 let hay = (row.summary.subject + " " + row.summary.from + " " + row.summary.to + " " + row.summary.cc).lowercased()
                 if terms.allSatisfy({ hay.contains($0) }) { return true }
                 guard bodies else { return false }

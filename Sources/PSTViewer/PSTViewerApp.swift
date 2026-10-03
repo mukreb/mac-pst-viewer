@@ -4,12 +4,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 import WebKit
 
-enum PSTTypes {
-    static let pst = UTType(filenameExtension: "pst") ?? .data
-    static let ost = UTType(filenameExtension: "ost") ?? .data
-    static var all: [UTType] { [pst, ost] }
-}
-
 final class AppDelegate: NSObject, NSApplicationDelegate {
     // Note: opening files (Finder double-click, Dock, `PSTViewer file.pst`) is deliberately
     // left to SwiftUI (`onOpenURL` below). Implementing `application(_:open:)` here would
@@ -181,21 +175,21 @@ struct PSTViewerApp: App {
                     if url.isFileURL { model.open(url) }
                 }
                 .onAppear {
-                    // `PSTViewer /path/to/file.pst` from the command line.
+                    // `PSTViewer /path/to/file.pst` (or an mbox file or mail folder) from the command line.
                     let args = CommandLine.arguments.dropFirst()
                     var skipNext = false
                     for arg in args {
                         if skipNext { skipNext = false; continue }
                         if arg.hasPrefix("-") { skipNext = arg == "--snapshot"; continue }
                         let url = URL(fileURLWithPath: arg)
-                        if ["pst", "ost"].contains(url.pathExtension.lowercased()) { model.open(url) }
+                        if FileManager.default.fileExists(atPath: url.path) { model.open(url) }
                     }
                 }
                 .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
         }
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button(t("Open PST File…", "Open PST-bestand…")) { model.showOpenPanel() }
+                Button(t("Open PST File or Mail Folder…", "Open PST-bestand of mailmap…")) { model.showOpenPanel() }
                     .keyboardShortcut("o")
             }
             CommandGroup(after: .importExport) {
