@@ -138,6 +138,8 @@ final class ViewerModel: ObservableObject {
     }
     @Published var searchResults: [MessageRow]?
     @Published var isSearching = false
+    /// Set when an all-folder search had to skip folders it could not read.
+    @Published var searchWarning: String?
 
     @AppStorage("showSystemFolders") var showSystemFolders = false
     @AppStorage("defaultCodepage") var defaultCodepage = 1252 {
@@ -310,6 +312,7 @@ final class ViewerModel: ObservableObject {
     private func scheduleSearch() {
         searchTask?.cancel()
         searchGeneration += 1
+        searchWarning = nil
         let generation = searchGeneration
         let query = searchText.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else {
@@ -336,6 +339,7 @@ final class ViewerModel: ObservableObject {
             }
 
             var results: [MessageRow] = []
+            var unreadable: [String] = []
             switch scope {
             case .folder:
                 guard let first = folderRows.first, let s = stores.first(where: { $0.id == first.ref.store }) else { break }
@@ -348,7 +352,11 @@ final class ViewerModel: ObservableObject {
                 for s in stores {
                     for node in s.allNodes {
                         if Task.isCancelled { return }
-                        let summaries = (try? s.file.messages(in: node.ref.nid)) ?? []
+                        let summaries: [MessageSummary]
+                        do { summaries = try s.file.messages(in: node.ref.nid) } catch {
+                            unreadable.append(node.name)
+                            continue
+                        }
                         for sum in summaries {
                             if Task.isCancelled { return }
                             let ref = MessageRef(store: s.id, nid: sum.nid)
@@ -370,6 +378,8 @@ final class ViewerModel: ObservableObject {
                 guard self.searchGeneration == generation else { return }
                 self.searchResults = final
                 self.isSearching = false
+                self.searchWarning = unreadable.isEmpty ? nil
+                    : "Onvolledig: \(unreadable.count) map(pen) konden niet worden gelezen (\(unreadable.prefix(3).joined(separator: ", ")))."
             }
         }
     }

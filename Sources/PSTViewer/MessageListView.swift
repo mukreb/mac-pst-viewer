@@ -57,6 +57,12 @@ struct MessageListView: View {
             if model.isSearching {
                 ProgressView().controlSize(.small)
             }
+            if let warning = model.searchWarning {
+                Label("Onvolledig", systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .help(warning)
+            }
             if !model.searchText.isEmpty {
                 Picker("Bereik", selection: $model.searchScope) {
                     ForEach(SearchScope.allCases) { Text($0.rawValue).tag($0) }

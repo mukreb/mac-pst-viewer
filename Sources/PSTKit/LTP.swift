@@ -55,8 +55,12 @@ struct Heap {
     /// Resolves a HNID: either a heap item or a subnode's data stream.
     func value(_ hnid: UInt32) throws -> [UInt8] {
         if hnid == 0 { return [] }
-        if hnid & 0x1F == 0 { return item(hnid) ?? [] }
-        guard let sub = try node.subnode(hnid) else { return [] }
+        // hnid 0 means "empty"; a nonzero reference that resolves to nothing is corruption.
+        if hnid & 0x1F == 0 {
+            guard let bytes = item(hnid) else { throw PSTError.corrupt("heap-verwijzing 0x\(String(hnid, radix: 16)) ontbreekt") }
+            return bytes
+        }
+        guard let sub = try node.subnode(hnid) else { throw PSTError.corrupt("subnode 0x\(String(hnid, radix: 16)) ontbreekt") }
         return try node.ndb.dataStream(sub.bidData)
     }
 }
@@ -183,11 +187,12 @@ struct TableContext {
         if hnidRows == 0 || rowSize == 0 {
             rowBlocks = []
         } else if hnidRows & 0x1F == 0 {
-            rowBlocks = [heap.item(hnidRows) ?? []]
+            guard let rows = heap.item(hnidRows) else { throw PSTError.corrupt("tabelrijen ontbreken") }
+            rowBlocks = [rows]
         } else if let sub = try node.subnode(hnidRows) {
             rowBlocks = try node.ndb.dataBlocks(sub.bidData)
         } else {
-            rowBlocks = []
+            throw PSTError.corrupt("tabelrijen ontbreken")
         }
         if rowSize > 0, let first = rowBlocks.first {
             rowsPerBlock = Swift.max(1, rowBlocks.count > 1 ? first.count / rowSize : Swift.max(first.count / rowSize, 1))
