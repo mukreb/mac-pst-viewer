@@ -49,26 +49,49 @@ struct AttachmentBar: View {
     }
 
     // MARK: Actions
+    // Reading an attachment can mean reassembling a large data tree from the PST, so all
+    // extraction and file I/O runs in the background; only UI updates return to the main actor.
 
     func preview(_ att: Attachment) {
         if att.isEmbeddedMessage { openEmbedded(att); return }
-        quickLookURL = try? temporaryFile(for: att)
+        let message = self.message
+        Task.detached(priority: .userInitiated) {
+            let result = Result { try AttachmentBar.temporaryFile(message: message, att: att) }
+            await MainActor.run {
+                switch result {
+                case .success(let url): quickLookURL = url
+                case .failure(let error): model.errorMessage = "Kan bijlage niet tonen: \(error)"
+                }
+            }
+        }
     }
 
     func open(_ att: Attachment) {
         if att.isEmbeddedMessage { openEmbedded(att); return }
-        do {
-            NSWorkspace.shared.open(try temporaryFile(for: att))
-        } catch {
-            model.errorMessage = "Kan bijlage niet openen: \(error)"
+        let message = self.message
+        Task.detached(priority: .userInitiated) {
+            let result = Result { try AttachmentBar.temporaryFile(message: message, att: att) }
+            await MainActor.run {
+                switch result {
+                case .success(let url): NSWorkspace.shared.open(url)
+                case .failure(let error): model.errorMessage = "Kan bijlage niet openen: \(error)"
+                }
+            }
         }
     }
 
     func save(_ att: Attachment) {
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = fileName(for: att)
+        panel.nameFieldStringValue = AttachmentBar.fileName(for: att)
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do { try contents(of: att).write(to: url) } catch { model.errorMessage = "\(error)" }
+        let message = self.message
+        Task.detached(priority: .userInitiated) {
+            do {
+                try AttachmentBar.contents(message: message, att: att).write(to: url)
+            } catch {
+                await MainActor.run { model.errorMessage = "\(error)" }
+            }
+        }
     }
 
     func saveAll() {
@@ -78,33 +101,40 @@ struct AttachmentBar: View {
         panel.canCreateDirectories = true
         panel.prompt = "Bewaar hier"
         guard panel.runModal() == .OK, let dir = panel.url else { return }
-        var used = Set<String>()
-        var failures: [String] = []
-        for att in attachments {
-            let name = fileName(for: att)
-            let ext = (name as NSString).pathExtension
-            let base = (name as NSString).deletingPathExtension
-            let url = ViewerModel.uniqueURL(in: dir, base: base, ext: ext.isEmpty ? "bin" : ext, used: &used)
-            do {
-                try contents(of: att).write(to: url)
-            } catch {
-                failures.append("• \(att.filename): \(error.localizedDescription)")
+        let message = self.message
+        let attachments = self.attachments
+        Task.detached(priority: .userInitiated) {
+            var used = Set<String>()
+            var failures: [String] = []
+            for att in attachments {
+                let name = AttachmentBar.fileName(for: att)
+                let ext = (name as NSString).pathExtension
+                let base = (name as NSString).deletingPathExtension
+                let url = ViewerModel.uniqueURL(in: dir, base: base, ext: ext.isEmpty ? "bin" : ext, used: &used)
+                do {
+                    try AttachmentBar.contents(message: message, att: att).write(to: url)
+                } catch {
+                    failures.append("• \(att.filename): \(error.localizedDescription)")
+                }
             }
-        }
-        NSWorkspace.shared.activateFileViewerSelecting([dir])
-        if !failures.isEmpty {
-            model.errorMessage = "\(failures.count) bijlage(n) konden niet worden bewaard:\n\n" + failures.joined(separator: "\n")
+            let failed = failures
+            await MainActor.run {
+                NSWorkspace.shared.activateFileViewerSelecting([dir])
+                if !failed.isEmpty {
+                    model.errorMessage = "\(failed.count) bijlage(n) konden niet worden bewaard:\n\n" + failed.joined(separator: "\n")
+                }
+            }
         }
     }
 
     // MARK: Files
 
-    func fileName(for att: Attachment) -> String {
+    static func fileName(for att: Attachment) -> String {
         let name = EMLWriter.safeName(att.filename)
         return att.isEmbeddedMessage && !name.lowercased().hasSuffix(".eml") ? name + ".eml" : name
     }
 
-    func contents(of att: Attachment) throws -> Data {
+    static func contents(message: Message, att: Attachment) throws -> Data {
         if att.isEmbeddedMessage, let m = try message.embeddedMessage(att) {
             return try EMLWriter.eml(for: m)
         }
@@ -118,13 +148,13 @@ struct AttachmentBar: View {
         try? FileManager.default.removeItem(at: temporaryRoot)
     }
 
-    func temporaryFile(for att: Attachment) throws -> URL {
+    static func temporaryFile(message: Message, att: Attachment) throws -> URL {
         // A fresh directory per request: NIDs and file names are only unique within one PST,
         // and several PSTs can be open at the same time.
-        let dir = AttachmentBar.temporaryRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let dir = temporaryRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent(fileName(for: att))
-        try contents(of: att).write(to: url)
+        try contents(message: message, att: att).write(to: url)
         return url
     }
 }

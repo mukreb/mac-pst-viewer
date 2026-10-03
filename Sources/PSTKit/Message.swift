@@ -26,6 +26,8 @@ public struct Attachment: Identifiable, Hashable, Sendable {
     let embeddedNID: UInt32?
 
     public var isEmbeddedMessage: Bool { method == 5 && embeddedNID != nil }
+    /// Attach-by-reference (methods 2, 3, 4, 7): only a link to a file outside the PST.
+    public var isExternalReference: Bool { [2, 3, 4, 7].contains(method) }
 
     var embeddedNode: NodeRef? {
         guard let nid = embeddedNID else { return nil }

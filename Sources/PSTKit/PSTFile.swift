@@ -141,13 +141,12 @@ public final class PSTFile: @unchecked Sendable {
         if let tc = try? table(nid: hierarchyNID) {
             childNIDs = tc.rows().map(\.rowID)
         }
-        if childNIDs.isEmpty {
-            // Fallback: use parent pointers from the node index.
-            childNIDs = ndb.children(of: nid)
-                .filter { $0.nid != nid && ($0.nid & 0x1F) == 0x02 }
-                .map(\.nid)
-                .sorted()
-        }
+        // Supplement the (possibly damaged or incomplete) table with parent pointers from the node index.
+        let listed = Set(childNIDs)
+        childNIDs += ndb.children(of: nid)
+            .filter { $0.nid != nid && ($0.nid & 0x1F) == 0x02 && !listed.contains($0.nid) }
+            .map(\.nid)
+            .sorted()
         for child in childNIDs where !visited.contains(child) && ndb.nodes[child] != nil {
             if let f = try? loadFolder(nid: child, depth: depth + 1, visited: &visited) {
                 folder.children.append(f)
@@ -229,7 +228,9 @@ public final class PSTFile: @unchecked Sendable {
             return Data(try ndb.dataStream(sub.bidData))
         default:
             // By-reference attachments (methods 2, 3, 4 and 7) only point to a file elsewhere.
-            if [2, 3, 4, 7].contains(attachment.method) { return Data() }
+            if attachment.isExternalReference {
+                throw PSTError.notFound("'\(attachment.filename)' is een koppeling naar een extern bestand; de inhoud zit niet in het PST-bestand")
+            }
             throw PSTError.corrupt("gegevens van bijlage '\(attachment.filename)' ontbreken")
         }
     }

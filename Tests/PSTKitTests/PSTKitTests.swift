@@ -167,6 +167,10 @@ final class PSTKitTests: XCTestCase {
         let z: [UInt8] = [0x78, 0x9c, 0xcb, 0x48, 0xcd, 0xc9, 0xc9, 0x57, 0xc8, 0x40, 0x27, 0x01, 0x68, 0x03, 0x08, 0xb1]
         let out = try XCTUnwrap(Inflate.zlib(z))
         XCTAssertEqual(String(decoding: out, as: UTF8.self), "hello hello hello hello")
+        // A corrupted checksum is rejected.
+        var bad = z
+        bad[bad.count - 1] ^= 0xFF
+        XCTAssertNil(Inflate.zlib(bad))
         // Output beyond the advertised size is rejected.
         XCTAssertNil(Inflate.zlib(z, expectedSize: 10))
         XCTAssertNotNil(Inflate.zlib(z, expectedSize: 23))

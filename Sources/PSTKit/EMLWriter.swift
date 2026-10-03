@@ -12,8 +12,10 @@ public enum EMLWriter {
         guard depth < 16 else { throw PSTError.corrupt("te diep geneste bijgevoegde berichten") }
         if let problem = m.recipientError ?? m.bodyError { throw PSTError.corrupt("\(m.subject): \(problem)") }
         var out = ""
-        let boundaryMixed = "----=_PSTViewer_mixed_\(m.nid)"
-        let boundaryAlt = "----=_PSTViewer_alt_\(m.nid)"
+        // NIDs of embedded messages are only unique within their parent, so add randomness.
+        let unique = UUID().uuidString
+        let boundaryMixed = "----=_PSTViewer_mixed_\(unique)"
+        let boundaryAlt = "----=_PSTViewer_alt_\(unique)"
 
         out += "From: \(address(name: m.fromName, email: m.fromEmail))\r\n"
         for (name, kind, display) in [("To", Recipient.Kind.to, m.displayTo), ("Cc", .cc, m.displayCc), ("Bcc", .bcc, m.displayBcc)] {
@@ -64,6 +66,11 @@ public enum EMLWriter {
                     out += "Content-Type: message/rfc822\r\n"
                     out += "Content-Disposition: attachment; \(mimeParam("filename", safeName(a.filename) + ".eml"))\r\n\r\n"
                     out += String(decoding: try eml(for: em, depth: depth + 1), as: UTF8.self)
+                } else if a.isExternalReference {
+                    // The PST only holds a link to a file elsewhere: say so instead of an empty file.
+                    out += "Content-Type: text/plain; charset=utf-8; \(mimeParam("name", a.filename + ".txt"))\r\n"
+                    out += "Content-Disposition: attachment; \(mimeParam("filename", a.filename + ".txt"))\r\n\r\n"
+                    out += "Deze bijlage (\(flat(a.filename))) was een koppeling naar een extern bestand en zit niet in het PST-bestand.\r\n"
                 } else {
                     // Fail loudly rather than export a silently empty attachment.
                     let data: Data

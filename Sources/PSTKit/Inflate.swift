@@ -9,7 +9,28 @@ enum Inflate {
         guard input.count >= 2 else { return nil }
         let cmf = input[0], flg = input[1]
         let hasHeader = (cmf & 0x0F) == 8 && (UInt16(cmf) << 8 | UInt16(flg)) % 31 == 0
-        return raw(input, start: hasHeader ? 2 : 0, expectedSize: expectedSize)
+        guard let (out, end) = decode(input, start: hasHeader ? 2 : 0, expectedSize: expectedSize) else { return nil }
+        // zlib streams end with an Adler-32 of the output: reject data that decodes but is corrupt.
+        if hasHeader, end + 4 <= input.count {
+            let stored = UInt32(input[end]) << 24 | UInt32(input[end + 1]) << 16 | UInt32(input[end + 2]) << 8 | UInt32(input[end + 3])
+            guard stored == adler32(out) else { return nil }
+        }
+        return out
+    }
+
+    static func adler32(_ data: [UInt8]) -> UInt32 {
+        var a: UInt32 = 1, b: UInt32 = 0
+        var i = 0
+        while i < data.count {
+            let end = min(i + 5552, data.count)  // largest block before the sums can overflow
+            while i < end { a += UInt32(data[i]); b += a; i += 1 }
+            a %= 65521; b %= 65521
+        }
+        return b << 16 | a
+    }
+
+    static func raw(_ input: [UInt8], start: Int = 0, expectedSize: Int = 0) -> [UInt8]? {
+        decode(input, start: start, expectedSize: expectedSize)?.out
     }
 
     private struct BitReader {
@@ -81,7 +102,8 @@ enum Inflate {
     }()
     private static let fixedDist = Huffman(lengths: [Int](repeating: 5, count: 30))
 
-    static func raw(_ input: [UInt8], start: Int = 0, expectedSize: Int = 0) -> [UInt8]? {
+    /// Decodes raw DEFLATE; also returns the byte offset just past the stream.
+    private static func decode(_ input: [UInt8], start: Int, expectedSize: Int) -> (out: [UInt8], end: Int)? {
         // Never produce more than advertised (or 64 MB when unknown): guards against decompression bombs.
         let limit = expectedSize > 0 ? expectedSize : 64 << 20
         var br = BitReader(input, start)
@@ -137,7 +159,7 @@ enum Inflate {
                 return nil
             }
         } while final == 0
-        return out
+        return (out, br.pos)
     }
 
     private static func codes(_ br: inout BitReader, _ out: inout [UInt8], _ lit: Huffman, _ dist: Huffman, limit: Int) -> Bool {
