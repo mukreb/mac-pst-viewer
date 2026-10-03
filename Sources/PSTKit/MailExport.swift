@@ -71,13 +71,21 @@ public enum MboxExport {
 
     /// True when `output` is one of the `sources` or lies inside a source folder, so writing it
     /// would overwrite or change an archive that is being read. Besides the paths it compares the
-    /// identity of the output and each of its folders with the sources, which also catches hard
-    /// links and other spellings on case-insensitive volumes.
+    /// identity of the output and each of its folders with the sources (and of an existing output
+    /// with the files in source folders), which also catches hard links and other spellings on
+    /// case-insensitive volumes.
     public static func overlaps(_ output: URL, sources: [URL]) -> Bool {
         let out = output.standardizedFileURL.resolvingSymlinksInPath().path
         let paths = sources.map { $0.standardizedFileURL.resolvingSymlinksInPath().path }
         if paths.contains(where: { out == $0 || out.hasPrefix($0.hasSuffix("/") ? $0 : $0 + "/") }) { return true }
         let ids = paths.compactMap(fileIdentity)
+        // An existing output can be a hard link to a mail file inside a source folder.
+        if let outID = fileIdentity(out) {
+            for p in paths {
+                guard let files = FileManager.default.enumerator(atPath: p) else { continue }
+                for case let name as String in files where fileIdentity(p + "/" + name) == outID { return true }
+            }
+        }
         var path = out
         while true {
             if let id = fileIdentity(path), ids.contains(id) { return true }

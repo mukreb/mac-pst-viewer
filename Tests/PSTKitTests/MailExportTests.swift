@@ -128,4 +128,17 @@ final class MailExportTests: XCTestCase {
         XCTAssertTrue(MboxExport.overlaps(mail.appendingPathComponent("new.mbox"), sources: [alias]))
         XCTAssertFalse(MboxExport.overlaps(other.appendingPathComponent("new.mbox"), sources: [mail]))
     }
+
+    func testHardLinkToFileInsideSourceFolderIsRefused() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("export-\(UUID().uuidString)")
+        let mail = dir.appendingPathComponent("Mail")
+        try FileManager.default.createDirectory(at: mail.appendingPathComponent("Projects.sbd"), withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+        let member = mail.appendingPathComponent("Projects.sbd/Client")
+        try FileManager.default.copyItem(at: try fixtureURL("netscape/Inbox"), to: member)
+        let alias = dir.appendingPathComponent("export.mbox")
+        try FileManager.default.linkItem(at: member, to: alias)
+        XCTAssertTrue(MboxExport.overlaps(alias, sources: [mail]))
+        XCTAssertFalse(MboxExport.overlaps(dir.appendingPathComponent("new.mbox"), sources: [mail]))
+    }
 }
