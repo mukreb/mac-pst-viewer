@@ -119,7 +119,11 @@ enum SearchScope: String, CaseIterable, Identifiable {
 final class ViewerModel: ObservableObject {
     @Published var stores: [OpenStore] = []
     @Published var selectedFolder: FolderRef? {
-        didSet { if oldValue != selectedFolder { loadMessages() } }
+        didSet {
+            // Selection changes arrive inside AppKit's table delegate callbacks; changing the
+            // message list synchronously there triggers "reentrant operation" warnings.
+            if oldValue != selectedFolder { DispatchQueue.main.async { self.loadMessages() } }
+        }
     }
     @Published var rows: [MessageRow] = []
     @Published var selectedMessage: MessageRef?

@@ -33,14 +33,21 @@ struct MessageListView: View {
         }
         .navigationTitle(title)
         .searchable(text: $model.searchText, placement: .toolbar, prompt: "Zoek op onderwerp, afzender…")
+        // Deferred to the next run-loop turn: these fire inside NSTableView delegate callbacks,
+        // and mutating table state synchronously there is a reentrant operation.
         .onChange(of: selection) { newValue in
-            model.selectedMessage = newValue.count == 1 ? newValue.first : nil
+            let ref = newValue.count == 1 ? newValue.first : nil
+            DispatchQueue.main.async { model.selectedMessage = ref }
         }
-        .onChange(of: model.selectedFolder) { _ in selection.removeAll() }
+        .onChange(of: model.selectedFolder) { _ in clearSelection() }
         // A new search can hide the selected message; don't keep showing or exporting it.
-        .onChange(of: model.searchText) { _ in selection.removeAll() }
-        .onChange(of: model.searchScope) { _ in selection.removeAll() }
-        .onChange(of: model.searchBodies) { _ in selection.removeAll() }
+        .onChange(of: model.searchText) { _ in clearSelection() }
+        .onChange(of: model.searchScope) { _ in clearSelection() }
+        .onChange(of: model.searchBodies) { _ in clearSelection() }
+    }
+
+    private func clearSelection() {
+        DispatchQueue.main.async { selection.removeAll() }
     }
 
     var header: some View {
