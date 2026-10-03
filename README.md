@@ -58,6 +58,8 @@ Open **PST Viewer → Settings…** (⌘,) for:
 - **Appearance**: System default, Light or Dark, and whether HTML messages get dark colours in dark mode.
 - **Show system folders**, **load remote images** and the **default character set** for old ANSI messages.
 
+<img src="docs/screenshot-settings.png" alt="Settings window" width="520">
+
 ## Old mbox mail (Netscape, Thunderbird)
 
 Netscape Communicator 4.x, Mozilla and Thunderbird keep every mail folder as an **mbox** file without an extension (`Inbox`, `Sent`, `Trash`, …). Subfolders of a folder `Projects` are in a directory `Projects.sbd`. The `.snm` (Netscape) and `.msf` (Mozilla, Thunderbird) files next to them are summary indexes; PST Viewer doesn't need them.

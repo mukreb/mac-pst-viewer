@@ -29,8 +29,9 @@ jobs:
         run: |
           APP="dist/PST Viewer.app/Contents/MacOS/PSTViewer"
           "$APP" --snapshot "$PWD/dist/screenshot-welcome.png" < /dev/null
-          # Same route as a Finder double-click:
-          open -W -a "$PWD/dist/PST Viewer.app" "$PWD/Tests/PSTKitTests/Fixtures/tika-testPST.pst" --args --demo --snapshot "$PWD/dist/screenshot-viewer.png"
+          # Same route as a Finder double-click (smoke test; not used in the README):
+          open -W -a "$PWD/dist/PST Viewer.app" "$PWD/Tests/PSTKitTests/Fixtures/tika-testPST.pst" --args --demo --snapshot "$PWD/dist/screenshot-finder-open.png"
+          "$APP" "$PWD/Tests/PSTKitTests/Fixtures/tika-testPST.pst" --demo --snapshot "$PWD/dist/screenshot-viewer.png" < /dev/null
           "$APP" "$PWD/Tests/PSTKitTests/Fixtures/dist-list-ansi.pst" --demo --snapshot "$PWD/dist/screenshot-ansi.png" < /dev/null
           "$APP" --settings --snapshot "$PWD/dist/screenshot-settings.png" < /dev/null
       - name: Zip app

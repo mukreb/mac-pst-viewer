@@ -208,16 +208,17 @@ struct MessageHeaderView: View {
             HStack(alignment: .top, spacing: 10) {
                 Avatar(name: message.fromName.isEmpty ? message.fromEmail : message.fromName)
                 VStack(alignment: .leading, spacing: 3) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(message.from.isEmpty ? tr("Unknown sender", "Onbekende afzender") : message.from)
-                            .font(.headline)
-                            .textSelection(.enabled)
-                        Spacer()
-                        if let d = message.date {
-                            Text(Format.longDate.string(from: d))
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
+                    // Sender and date side by side when they fit, otherwise the date goes underneath
+                    // instead of both being squeezed into narrow, word-wrapped columns.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .firstTextBaseline) {
+                            senderText
+                            Spacer()
+                            dateText
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            senderText
+                            dateText
                         }
                     }
                     addressLine(tr("To", "Aan"), message.to)
@@ -247,6 +248,22 @@ struct MessageHeaderView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    var senderText: some View {
+        Text(message.from.isEmpty ? tr("Unknown sender", "Onbekende afzender") : message.from)
+            .font(.headline)
+            .textSelection(.enabled)
+    }
+
+    @ViewBuilder
+    var dateText: some View {
+        if let d = message.date {
+            Text(Format.longDate.string(from: d))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+        }
     }
 
     @ViewBuilder

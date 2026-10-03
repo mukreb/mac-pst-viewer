@@ -40,9 +40,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     window.contentView = host
                     window.makeKeyAndOrderFront(nil)
                     AppDelegate.settingsSnapshotWindow = window
-                } else {
-                    NSApp.windows.first { $0.isVisible && $0.contentView != nil }?
-                        .setFrame(NSRect(x: 40, y: 40, width: 1380, height: 820), display: true)
+                } else if let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }) {
+                    // As large as the screen allows (CI runners have small screens), up to 1380×820.
+                    let visible = window.screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+                    let size = NSSize(width: min(1380, visible.width - 40), height: min(820, visible.height - 40))
+                    window.setFrame(NSRect(x: visible.minX + 20, y: visible.maxY - 20 - size.height,
+                                           width: size.width, height: size.height), display: true)
                 }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
@@ -60,6 +63,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let candidate = preferKeyWindow ? (settingsSnapshotWindow ?? NSApp.keyWindow)
                                         : NSApp.windows.first(where: { $0.isVisible && $0.frame.width > 400 })
+        // Prefer a real capture of the window: drawing the view hierarchy into a bitmap misses
+        // content the window server composites itself, such as Liquid Glass on macOS 26.
+        if let window = candidate, captureWithScreencapture(window, to: url) {
+            print("snapshot written to \(url.path) (screencapture)")
+            NSApp.terminate(nil)
+            return
+        }
         guard let window = candidate,
               let view = window.contentView?.superview ?? window.contentView,
               let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
@@ -99,6 +109,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             print("snapshot written to \(url.path) (\(shots.count) web views)")
             NSApp.terminate(nil)
         }
+    }
+
+    /// Captures one window with the system `screencapture` tool (needs screen-recording access).
+    static func captureWithScreencapture(_ window: NSWindow, to url: URL) -> Bool {
+        let tool = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        guard FileManager.default.isExecutableFile(atPath: tool.path) else { return false }
+        try? FileManager.default.removeItem(at: url)
+        let process = Process()
+        process.executableURL = tool
+        process.arguments = ["-x", "-o", "-l\(window.windowNumber)", url.path]
+        do { try process.run() } catch { return false }
+        process.waitUntilExit()
+        return process.terminationStatus == 0 && FileManager.default.fileExists(atPath: url.path)
     }
 
     /// Opens the main window through its Window-menu item if no window is visible.
