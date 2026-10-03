@@ -101,9 +101,12 @@ public enum EMLWriter {
         return Data(out.utf8)
     }
 
-    /// Appends messages to mbox format (mboxrd quoting).
-    public static func mboxEntry(for m: Message) throws -> Data {
-        let eml = MIME.normalizeLineEndings(try eml(for: m))
+    /// Appends messages to mbox format (mboxrd quoting). `headers` are put in front of the
+    /// message's own headers, for example where the message came from.
+    public static func mboxEntry(for m: Message, headers: [(String, String)] = []) throws -> Data {
+        var message = Data(headers.map { header($0.0, $0.1) }.joined().utf8)
+        message.append(try eml(for: m))
+        let eml = MIME.normalizeLineEndings(message)
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
         df.timeZone = TimeZone(identifier: "UTC")

@@ -15,9 +15,9 @@ A simple, fast viewer for Outlook archives (`.pst` and `.ost`) and old mbox mail
 - **Sent items show recipients**: in Sent Items, Outbox and Drafts the list shows who a message went to (To, or Cc) instead of yourself.
 - **Attachments**: Quick Look, open, save, or save all at once. Attached messages (forwarded mail) can be opened in turn.
 - **Contacts, calendar items and tasks** with their own fields (email, phone, start/end, location…).
-- **Search** by subject, sender or recipient, in the current folder or in all folders, optionally in the message text as well.
+- **Search** by subject, sender or recipient, in the current folder or in all folders, optionally in the message text and email addresses as well.
 - **Sorting** by sender, subject, date and size; unread messages in bold.
-- **Export** to `.eml` (opens in Apple Mail), a whole folder as `.eml` files, or as `.mbox` (imports into Apple Mail and Thunderbird).
+- **Export** to `.eml` (opens in Apple Mail), a whole folder as `.eml` files, or as `.mbox` (imports into Apple Mail and Thunderbird). Selected messages — for example all search results — can also be exported as one `.mbox` file.
 - **Headers and all MAPI properties** for anyone who wants to know exactly what's inside.
 - **English and Dutch**: follows your Mac's language by default (English when the language isn't available); switch in Settings.
 - **Light and dark mode**: follows the system or can be set in Settings; HTML mail can be shown with dark colours in dark mode.
@@ -86,6 +86,20 @@ swift run pstdump archive.pst --show 0x200024   # a single message
 swift run pstdump archive.pst --eml 0x200024 > message.eml
 ```
 
+It can also export the messages of one or more archives to a single mbox file, optionally only those that match a search:
+
+```bash
+swift run pstdump archive.pst --mbox all.mbox
+swift run pstdump old.pst archive.pst "Netscape Mail" --mbox piet.mbox --search "asseldonk"
+swift run pstdump archive.pst --mbox sent.mbox --search "piet" --folder "verzonden"
+```
+
+- `--search` looks for words in the subject, sender and recipients, including their email addresses; all words must occur. Add `--body` to search the message text and attachment names as well.
+- `--folder` only exports folders whose path contains this text (for example `inbox` or `projects/client a`).
+- `--append` adds to an existing mbox file instead of overwriting it.
+- Each message gets an `X-Folder` header with the archive and folder it came from. A message that is in several folders or archives (same Message-ID) is written once.
+- The exit code is 3 when some messages couldn't be read; they are listed in the output.
+
 ## How it works
 
 `Sources/PSTKit` is a PST reader written from scratch in pure Swift, without external dependencies, based on the public [MS-PST](https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-pst/) specification:
@@ -98,6 +112,7 @@ swift run pstdump archive.pst --eml 0x200024 > message.eml
 | `RTF.swift` | LZFu decompression, extracting HTML from RTF, RTF → text |
 | `Inflate.swift` | Deflate decoder for compressed OST 2013 blocks |
 | `EMLWriter.swift` | Export to `.eml` and `.mbox` |
+| `MailExport.swift` | Search filter and mbox export across archives (`pstdump --mbox`) |
 | `MailStore.swift` | The interface the app uses for both PST files and mbox archives |
 | `Mbox.swift` | Mbox files and Netscape/Thunderbird folder trees (`.sbd`) |
 | `MIME.swift`, `MIMEContent.swift` | MIME parser (multipart, base64, quoted-printable, RFC 2047/2231, uuencode) |

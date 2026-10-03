@@ -382,7 +382,9 @@ final class ViewerModel: ObservableObject {
                     return false
                 }
                 if m.bodyError != nil { unreadableMessages += 1 }
-                let full = (hay + " " + m.plainBody + " " + m.attachments.map(\.filename).joined(separator: " ")).lowercased()
+                // The list shows names only for PST mail; the full message also has the addresses.
+                let addresses = m.from + " " + m.to + " " + m.cc + " " + m.bcc
+                let full = (hay + " " + addresses + " " + m.plainBody + " " + m.attachments.map(\.filename).joined(separator: " ")).lowercased()
                 return terms.allSatisfy { full.contains($0) }
             }
 
@@ -472,6 +474,48 @@ final class ViewerModel: ObservableObject {
                     failures.append(tr("message \(i + 1)", "bericht \(i + 1)") + ": \(error.localizedDescription)")
                 }
                 await progress(i + 1)
+            }
+            return failures
+        }
+    }
+
+    /// Writes the given messages (for example all search results) to one mbox file, oldest first.
+    /// Each message gets an X-Folder header naming its file and folder, since search results mix them.
+    func exportMessagesAsMbox(_ refs: [MessageRef]) {
+        guard !refs.isEmpty else { return }
+        let panel = NSSavePanel()
+        let query = searchText.trimmingCharacters(in: .whitespaces)
+        let base = searchResults != nil && !query.isEmpty ? query : (folderNode(selectedFolder)?.name ?? tr("Messages", "Berichten"))
+        panel.nameFieldStringValue = EMLWriter.safeName(base) + ".mbox"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let selected = Set(refs)
+        let folderName = folderNode(selectedFolder)?.name ?? ""
+        let items: [(ref: MessageRef, location: String)] = visibleRows
+            .filter { selected.contains($0.ref) }
+            .sorted { $0.sortDate < $1.sortDate }
+            .map { row in
+                let file = store(row.ref.store)?.fileName ?? ""
+                return (row.ref, file + "/" + (row.folderName.isEmpty ? folderName : row.folderName))
+            }
+        runExport(count: items.count, text: tr("Exporting messages to mbox…", "Berichten exporteren naar mbox…")) { progress in
+            var failures: [String] = []
+            do {
+                guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
+                    return [tr("Can't create \(url.lastPathComponent).", "Kan \(url.lastPathComponent) niet aanmaken.")]
+                }
+                let handle = try FileHandle(forWritingTo: url)
+                defer { try? handle.close() }
+                for (i, item) in items.enumerated() {
+                    do {
+                        let m = try await self.message(item.ref)
+                        try handle.write(contentsOf: EMLWriter.mboxEntry(for: m, headers: [("X-Folder", item.location)]))
+                    } catch {
+                        failures.append(tr("message \(i + 1)", "bericht \(i + 1)") + ": \(error.localizedDescription)")
+                    }
+                    await progress(i + 1)
+                }
+            } catch {
+                failures.append(error.localizedDescription)
             }
             return failures
         }
