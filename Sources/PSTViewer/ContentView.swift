@@ -177,25 +177,44 @@ struct SettingsView: View {
     @AppStorage("loadRemoteContent") private var loadRemoteContent = false
 
     var body: some View {
+        // Grouped form: labels on the left, controls on the right, long explanations wrap
+        // underneath instead of being clipped by the window.
         Form {
-            Toggle("Toon systeemmappen (Search Root, Freebusy, …)", isOn: $showSystemFolders)
+            Section("Mappen") {
+                Toggle(isOn: $showSystemFolders) {
+                    Text("Toon systeemmappen")
+                    Text("Interne Outlook-mappen zoals Search Root en Freebusy Data.")
+                }
                 .onChange(of: showSystemFolders) { _ in model.rebuildStores() }
-            Toggle("Externe afbeeldingen in HTML-berichten laden", isOn: $loadRemoteContent)
-            Picker("Standaard tekenset voor oude (ANSI) berichten", selection: $defaultCodepage) {
-                Text("West-Europees (Windows-1252)").tag(1252)
-                Text("Centraal-Europees (Windows-1250)").tag(1250)
-                Text("Cyrillisch (Windows-1251)").tag(1251)
-                Text("Grieks (Windows-1253)").tag(1253)
-                Text("Turks (Windows-1254)").tag(1254)
-                Text("Japans (Shift-JIS)").tag(932)
-                Text("UTF-8").tag(65001)
             }
-            .onChange(of: defaultCodepage) { v in model.defaultCodepage = v }
-            Text("De tekenset wordt alleen gebruikt als een bericht zelf geen tekenset aangeeft. Open het bestand opnieuw om de wijziging overal toe te passen.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Section("Berichten") {
+                Toggle(isOn: $loadRemoteContent) {
+                    Text("Externe afbeeldingen laden")
+                    Text("Afbeeldingen van internet in HTML-berichten. Standaard uit voor privacy.")
+                }
+            }
+            Section {
+                Picker("Standaardtekenset", selection: $defaultCodepage) {
+                    Text("West-Europees (Windows-1252)").tag(1252)
+                    Text("Centraal-Europees (Windows-1250)").tag(1250)
+                    Text("Cyrillisch (Windows-1251)").tag(1251)
+                    Text("Grieks (Windows-1253)").tag(1253)
+                    Text("Turks (Windows-1254)").tag(1254)
+                    Text("Japans (Shift-JIS)").tag(932)
+                    Text("UTF-8").tag(65001)
+                }
+                .onChange(of: defaultCodepage) { v in model.defaultCodepage = v }
+            } header: {
+                Text("Oude (ANSI) berichten")
+            } footer: {
+                Text("Wordt alleen gebruikt als een bericht zelf geen tekenset aangeeft. Open het bestand opnieuw om de wijziging overal toe te passen.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .padding(20)
-        .frame(width: 520)
+        .formStyle(.grouped)
+        .frame(width: 500)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }

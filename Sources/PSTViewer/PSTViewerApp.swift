@@ -30,22 +30,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
             let out = URL(fileURLWithPath: args[i + 1])
+            let settings = args.contains("--settings")
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                NSApp.windows.first { $0.isVisible && $0.contentView != nil }?
-                    .setFrame(NSRect(x: 40, y: 40, width: 1380, height: 820), display: true)
+                if settings {
+                    // Open the Settings scene (macOS 13 uses showPreferencesWindow:, 14+ showSettingsWindow:).
+                    if !NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) {
+                        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+                    }
+                } else {
+                    NSApp.windows.first { $0.isVisible && $0.contentView != nil }?
+                        .setFrame(NSRect(x: 40, y: 40, width: 1380, height: 820), display: true)
+                }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-                AppDelegate.snapshot(to: out)
+                AppDelegate.snapshot(to: out, preferKeyWindow: settings)
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 25) { NSApp.terminate(nil) }
         }
     }
 
-    static func snapshot(to url: URL) {
+    static func snapshot(to url: URL, preferKeyWindow: Bool = false) {
         for w in NSApp.windows {
             print("window: \(w.title) visible=\(w.isVisible) frame=\(w.frame)")
         }
-        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.frame.width > 400 }),
+        let candidate = preferKeyWindow ? (NSApp.keyWindow ?? NSApp.windows.last(where: { $0.isVisible }))
+                                        : NSApp.windows.first(where: { $0.isVisible && $0.frame.width > 400 })
+        guard let window = candidate,
               let view = window.contentView?.superview ?? window.contentView,
               let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
             print("snapshot: no window")

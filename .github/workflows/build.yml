@@ -30,6 +30,7 @@ jobs:
           # Same route as a Finder double-click:
           open -W -a "$PWD/dist/PST Viewer.app" "$PWD/Tests/PSTKitTests/Fixtures/tika-testPST.pst" --args --demo --snapshot "$PWD/dist/screenshot-viewer.png"
           "$APP" "$PWD/Tests/PSTKitTests/Fixtures/dist-list-ansi.pst" --demo --snapshot "$PWD/dist/screenshot-ansi.png" < /dev/null
+          "$APP" --settings --snapshot "$PWD/dist/screenshot-settings.png" < /dev/null
       - name: Zip app
         run: cd dist && ditto -c -k --keepParent "PST Viewer.app" PST-Viewer.zip
       - uses: actions/upload-artifact@v4
