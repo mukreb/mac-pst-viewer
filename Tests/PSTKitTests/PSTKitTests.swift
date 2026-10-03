@@ -214,6 +214,8 @@ final class PSTKitTests: XCTestCase {
         XCTAssertTrue(long.contains("filename*1*="))
         for line in long.components(separatedBy: "\r\n") { XCTAssertLessThanOrEqual(line.count, 998) }
         XCTAssertEqual(EMLWriter.mimeParam("name", "a b.txt"), "name=\"a b.txt\"")
+        let longASCII = EMLWriter.mimeParam("filename", String(repeating: "a", count: 2000) + ".txt")
+        for line in longASCII.components(separatedBy: "\r\n") { XCTAssertLessThanOrEqual(line.count, 998) }
     }
 
     func testRTFHugeAdvertisedSize() {

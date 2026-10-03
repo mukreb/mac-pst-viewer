@@ -161,7 +161,10 @@ public final class PSTFile: @unchecked Sendable {
         let contentsNID = (folderNID & ~0x1F) | (folderNID & 0x1F == 0x03 ? 0x10 : 0x0E)
         var result: [MessageSummary] = []
         var seen = Set<UInt32>()
-        if let tc = try? table(nid: contentsNID) {
+        // A missing contents table means "fall back to parent pointers"; one that exists but
+        // cannot be decoded is an error the caller must hear about.
+        if ndb.nodes[contentsNID] != nil {
+            let tc = try table(nid: contentsNID)
             for row in tc.rows() {
                 let nid = row.rowID
                 guard ndb.nodes[nid] != nil, seen.insert(nid).inserted else { continue }

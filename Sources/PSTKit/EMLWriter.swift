@@ -3,6 +3,14 @@ import Foundation
 /// Builds RFC 5322 / MIME (.eml) messages and mbox files from PST messages.
 public enum EMLWriter {
     public static func eml(for m: Message) throws -> Data {
+        try eml(for: m, depth: 0)
+    }
+
+    /// `depth` limits nested embedded messages, so a corrupt file whose attachments point back
+    /// to their own message cannot recurse forever.
+    static func eml(for m: Message, depth: Int) throws -> Data {
+        guard depth < 16 else { throw PSTError.corrupt("te diep geneste bijgevoegde berichten") }
+        if let problem = m.recipientError { throw PSTError.corrupt("\(m.subject): \(problem)") }
         var out = ""
         let boundaryMixed = "----=_PSTViewer_mixed_\(m.nid)"
         let boundaryAlt = "----=_PSTViewer_alt_\(m.nid)"
@@ -55,7 +63,7 @@ public enum EMLWriter {
                     }
                     out += "Content-Type: message/rfc822\r\n"
                     out += "Content-Disposition: attachment; \(mimeParam("filename", safeName(a.filename) + ".eml"))\r\n\r\n"
-                    out += String(decoding: try eml(for: em), as: UTF8.self)
+                    out += String(decoding: try eml(for: em, depth: depth + 1), as: UTF8.self)
                 } else {
                     // Fail loudly rather than export a silently empty attachment.
                     let data: Data
@@ -192,7 +200,8 @@ public enum EMLWriter {
     /// parameter (`key*=utf-8''…`), since RFC 2047 encoded words are not allowed in parameters.
     static func mimeParam(_ key: String, _ value: String) -> String {
         let v = flat(value)
-        if v.unicodeScalars.allSatisfy({ $0.isASCII }) { return "\(key)=\(quotedParam(v))" }
+        // Short ASCII values stay a plain quoted string; long ones use the continuation path below.
+        if v.unicodeScalars.allSatisfy({ $0.isASCII }) && v.count <= 70 { return "\(key)=\(quotedParam(v))" }
         var fallback = String(v.unicodeScalars.map { $0.isASCII ? Character($0) : "_" })
         if fallback.count > 60 { fallback = String(fallback.prefix(50)) + "…" + String(fallback.suffix(9)) }
         fallback = String(fallback.unicodeScalars.map { $0.isASCII ? Character($0) : "_" })

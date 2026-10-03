@@ -285,7 +285,11 @@ final class ViewerModel: ObservableObject {
         guard let ref = selectedFolder, let s = store(ref.store) else { rows = []; return }
         let file = s.file
         loadTask = Task.detached(priority: .userInitiated) {
-            let summaries = (try? file.messages(in: ref.nid)) ?? []
+            let summaries: [MessageSummary]
+            do { summaries = try file.messages(in: ref.nid) } catch {
+                await MainActor.run { self.errorMessage = "Deze map kan niet volledig worden gelezen.\n\n\(error)" }
+                return
+            }
             let rows = summaries.map { MessageRow(ref: MessageRef(store: ref.store, nid: $0.nid), summary: $0) }
                 .sorted { $0.sortDate > $1.sortDate }
             await MainActor.run {
@@ -434,7 +438,7 @@ final class ViewerModel: ObservableObject {
                 }
                 let handle = try FileHandle(forWritingTo: url)
                 defer { try? handle.close() }
-                let summaries = (try? file.messages(in: ref.nid)) ?? []
+                let summaries = try file.messages(in: ref.nid)
                 for (i, sum) in summaries.enumerated() {
                     do {
                         let m = try file.message(nid: sum.nid)
@@ -485,7 +489,12 @@ final class ViewerModel: ObservableObject {
                     return
                 }
                 var used = Set<String>()
-                for sum in (try? file.messages(in: f.nid)) ?? [] {
+                let summaries: [MessageSummary]
+                do { summaries = try file.messages(in: f.nid) } catch {
+                    failures.append("map \(f.name): \(error.localizedDescription)")
+                    summaries = []
+                }
+                for sum in summaries {
                     do {
                         let m = try file.message(nid: sum.nid)
                         let url = Self.uniqueURL(in: target, base: EMLWriter.safeName(m.subject), ext: "eml", used: &used)

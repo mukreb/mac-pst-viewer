@@ -142,9 +142,19 @@ public final class Message: @unchecked Sendable {
 
     // MARK: Recipients
 
-    public lazy var recipients: [Recipient] = {
-        guard let sub = try? node.subnode(0x692), let tc = try? TableContext(sub) else { return [] }
-        return tc.rows().enumerated().map { i, row in
+    public var recipients: [Recipient] { recipientLoad.list }
+
+    /// Set when a recipient table exists but cannot be read; exports report it instead of
+    /// silently falling back to the display-only To/Cc fields.
+    public var recipientError: String? { recipientLoad.error }
+
+    private lazy var recipientLoad: (list: [Recipient], error: String?) = {
+        let table: NodeRef?
+        do { table = try node.subnode(0x692) } catch { return ([], "ontvangers kunnen niet worden gevonden (\(error))") }
+        guard let sub = table else { return ([], nil) }  // no recipient table
+        let tc: TableContext
+        do { tc = try TableContext(sub) } catch { return ([], "ontvangerstabel kan niet worden gelezen (\(error))") }
+        let list = tc.rows().enumerated().map { i, row -> Recipient in
             let name = row[PropID.displayName]?.stringValue(codepage: codepage) ?? ""
             var email = row[PropID.smtpAddress]?.stringValue(codepage: codepage) ?? ""
             if email.isEmpty { email = row[PropID.emailAddress]?.stringValue(codepage: codepage) ?? "" }
@@ -152,6 +162,7 @@ public final class Message: @unchecked Sendable {
             let kind = Recipient.Kind(rawValue: Int(row[PropID.recipientType]?.intValue ?? 1) & 0x0F) ?? .other
             return Recipient(id: i, name: name, email: email, kind: kind)
         }
+        return (list, nil)
     }()
 
     public func recipients(_ kind: Recipient.Kind) -> [Recipient] { recipients.filter { $0.kind == kind } }
