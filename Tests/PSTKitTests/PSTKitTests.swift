@@ -210,6 +210,13 @@ final class PSTKitTests: XCTestCase {
         var bytes: [UInt8] = [0x20, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0x7F, 0x4C, 0x5A, 0x46, 0x75, 0, 0, 0, 0]
         bytes += [UInt8](repeating: 0, count: 16)
         XCTAssertNotNil(RTF.decompress(bytes))
+
+        // A dishonestly small raw size must cap the decoded output during decompression.
+        var lying: [UInt8] = [0, 0, 0, 0, 4, 0, 0, 0, 0x4C, 0x5A, 0x46, 0x75, 0, 0, 0, 0]
+        for _ in 0..<64 { lying += [0x00] + Array("abcdefgh".utf8) }
+        let size = UInt32(lying.count - 4)
+        lying[0] = UInt8(size & 0xFF); lying[1] = UInt8(size >> 8)
+        XCTAssertEqual(RTF.decompress(lying)?.count, 4)
     }
 
     func testHeaderInjectionIsFlattened() {

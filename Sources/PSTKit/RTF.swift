@@ -19,15 +19,17 @@ public enum RTF {
         for (i, b) in prebuf.enumerated() { dict[i] = b }
         var writePos = prebuf.count
         var out: [UInt8] = []
-        // LZFu expands at most ~8x; never trust the advertised size beyond that (or 64 MB).
-        out.reserveCapacity(Swift.max(0, Swift.min(rawSize, input.count * 8, 64 << 20)))
+        // Hard output limit: the advertised size, never more than 64 MB, enforced while decoding.
+        let limit = rawSize > 0 ? Swift.min(rawSize, 64 << 20) : 64 << 20
+        // LZFu expands at most ~8x; never trust the advertised size beyond that.
+        out.reserveCapacity(Swift.max(0, Swift.min(limit, input.count * 8)))
         var pos = 16
         let end = Swift.min(input.count, compSize + 4)
         outer: while pos < end {
             let control = input[pos]
             pos += 1
             for bit in 0..<8 {
-                guard pos < end else { break outer }
+                guard pos < end, out.count < limit else { break outer }
                 if control & (1 << bit) == 0 {
                     let b = input[pos]
                     pos += 1
@@ -41,7 +43,7 @@ public enum RTF {
                     let offset = ref >> 4
                     let length = (ref & 0xF) + 2
                     if offset == writePos { break outer }
-                    for k in 0..<length {
+                    for k in 0..<Swift.min(length, limit - out.count) {
                         let b = dict[(offset + k) & 0xFFF]
                         out.append(b)
                         dict[writePos] = b
@@ -50,7 +52,6 @@ public enum RTF {
                 }
             }
         }
-        if rawSize > 0, out.count > rawSize { out.removeLast(out.count - rawSize) }
         return out
     }
 

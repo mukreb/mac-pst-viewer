@@ -157,7 +157,8 @@ public final class PSTFile: @unchecked Sendable {
 
     /// Lists the messages of a folder using its contents table.
     public func messages(in folderNID: UInt32) throws -> [MessageSummary] {
-        let contentsNID = (folderNID & ~0x1F) | 0x0E
+        // Normal folders use NID type 0x0E for their contents table; search folders use 0x10.
+        let contentsNID = (folderNID & ~0x1F) | (folderNID & 0x1F == 0x03 ? 0x10 : 0x0E)
         var result: [MessageSummary] = []
         var seen = Set<UInt32>()
         if let tc = try? table(nid: contentsNID) {
