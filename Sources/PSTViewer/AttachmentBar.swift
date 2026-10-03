@@ -130,13 +130,14 @@ struct AttachmentBar: View {
     }
 
     // MARK: Files
+    // nonisolated: these run in detached tasks and touch no view or model state.
 
-    static func fileName(for att: Attachment) -> String {
+    nonisolated static func fileName(for att: Attachment) -> String {
         let name = EMLWriter.safeName(att.filename)
         return att.isEmbeddedMessage && !name.lowercased().hasSuffix(".eml") ? name + ".eml" : name
     }
 
-    static func contents(message: Message, att: Attachment) throws -> Data {
+    nonisolated static func contents(message: Message, att: Attachment) throws -> Data {
         if att.isEmbeddedMessage, let m = try message.embeddedMessage(att) {
             return try EMLWriter.eml(for: m)
         }
@@ -144,13 +145,13 @@ struct AttachmentBar: View {
     }
 
     /// Preview/open copies live here; the folder is emptied at launch and at quit.
-    static let temporaryRoot = FileManager.default.temporaryDirectory.appendingPathComponent("PSTViewer", isDirectory: true)
+    nonisolated static let temporaryRoot = FileManager.default.temporaryDirectory.appendingPathComponent("PSTViewer", isDirectory: true)
 
-    static func purgeTemporaryFiles() {
+    nonisolated static func purgeTemporaryFiles() {
         try? FileManager.default.removeItem(at: temporaryRoot)
     }
 
-    static func temporaryFile(message: Message, att: Attachment) throws -> URL {
+    nonisolated static func temporaryFile(message: Message, att: Attachment) throws -> URL {
         // A fresh directory per request: NIDs and file names are only unique within one PST,
         // and several PSTs can be open at the same time.
         let dir = temporaryRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
