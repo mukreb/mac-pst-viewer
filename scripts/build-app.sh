@@ -10,6 +10,8 @@
 #
 # The version is APP_VERSION if set, else the latest `v*` git tag (without the "v"), else the one in
 # Resources/Info.plist. The build number is BUILD_NUMBER if set, else the number of commits.
+# CFBundleShortVersionString gets the first three numbers (Apple requires that form); the full
+# version, such as 1.2.0-beta.1 or 1.2.0.57, goes into PSTUpdateVersion for the updater.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -36,7 +38,10 @@ VERSION="${APP_VERSION:-$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/de
 VERSION="${VERSION#v}"
 BUILD="${BUILD_NUMBER:-$(git rev-list --count HEAD 2>/dev/null || true)}"
 if [[ -n "$VERSION" ]]; then
-  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$STAGE/Contents/Info.plist"
+  SHORT="$(cut -d- -f1 <<< "$VERSION" | cut -d. -f1-3)"
+  while [[ "$(tr -cd . <<< "$SHORT" | wc -c | tr -d ' ')" -lt 2 ]]; do SHORT="$SHORT.0"; done
+  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $SHORT" "$STAGE/Contents/Info.plist"
+  /usr/libexec/PlistBuddy -c "Add :PSTUpdateVersion string $VERSION" "$STAGE/Contents/Info.plist"
 fi
 if [[ -n "$BUILD" ]]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$STAGE/Contents/Info.plist"

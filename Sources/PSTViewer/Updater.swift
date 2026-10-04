@@ -26,7 +26,7 @@ final class Updater: ObservableObject {
     private let checkInterval: TimeInterval = 24 * 60 * 60
 
     var currentVersion: AppVersion {
-        AppVersion(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") ?? AppVersion("0")!
+        Self.version(of: Bundle.main) ?? AppVersion("0")!
     }
 
     private var repository: String? {
@@ -224,11 +224,18 @@ final class Updater: ObservableObject {
         let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSStrictValidate | kSecCSCheckNestedCode)
         guard SecStaticCodeCheckValidity(code, flags, requirement) == errSecSuccess else { throw invalid }
 
-        let newVersion = (Bundle(url: app)?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String).flatMap(AppVersion.init)
+        let newVersion = Bundle(url: app).flatMap(Self.version(of:))
         guard let newVersion, newVersion == version else {
             throw UpdateError.message(tr("The downloaded app has an unexpected version. The update was not installed.",
                                          "De gedownloade app heeft een onverwachte versie. De update is niet geïnstalleerd."))
         }
+    }
+
+    /// The full version (`PSTUpdateVersion`, set by build-app.sh, e.g. 1.2.0.57), else the short version.
+    private static func version(of bundle: Bundle) -> AppVersion? {
+        let text = bundle.object(forInfoDictionaryKey: "PSTUpdateVersion") as? String
+            ?? bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        return text.flatMap(AppVersion.init)
     }
 
     /// The Team ID of a Developer ID (or other Apple-issued) signature; nil for ad-hoc signed apps.

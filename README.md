@@ -85,7 +85,7 @@ The app looks for a new [GitHub release](https://github.com/mukreb/mac-pst-viewe
 Settings → Updates → **Install** chooses what to update to:
 
 - **Releases** (default): only versions published from a version tag, such as `v1.2.0`.
-- **All builds**: also every signed build of `main` and pre-releases. Builds of `main` are numbered after the latest release (`1.2.0.57` is build 57 after `v1.2.0`), so they sort between that release and the next one. Switching back to Releases never downgrades: you get the next release that is newer than the build you have.
+- **All builds**: also every signed build of `main` and pre-releases. Builds of `main` are numbered after the latest release (`1.2.0.57` is build 57 after `v1.2.0`), so they sort between that release and the next one. (The Finder shows them as `1.2.0 (57)`, because macOS wants three numbers in the version.) Switching back to Releases never downgrades: you get the next release that is newer than the build you have.
 
 The update is downloaded, unpacked and checked before it replaces the app: it must be signed with a Developer ID of the same team as the running app, have the same bundle identifier and be the version that was offered. An app you built yourself (ad-hoc signed), or one that isn't in a folder it can write to, can't replace itself; for those the button opens the release page instead.
 
