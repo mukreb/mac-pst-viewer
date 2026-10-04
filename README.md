@@ -44,11 +44,37 @@ Then drag `dist/PST Viewer.app` to your Applications folder. You can open a `.ps
 
 ### Option 2: ready-made download
 
-Every build on GitHub Actions produces a universal app (Apple Silicon + Intel) that you can download under **Actions → Build → Artifacts → PST-Viewer-macOS**. Because the app isn't notarized by Apple, the first time you have to right-click the app → **Open**, or run in Terminal:
+Every build on GitHub Actions produces a universal app (Apple Silicon + Intel) that you can download under **Actions → Build → Artifacts → PST-Viewer-macOS**. Builds of `main` are signed with a Developer ID and notarized by Apple, so they open with a double-click. Builds of pull requests aren't; for those, the first time you have to right-click the app → **Open**, or run in Terminal:
 
 ```bash
 xattr -dr com.apple.quarantine "PST Viewer.app"
 ```
+
+### Notarized builds
+
+Notarizing needs a paid Apple Developer account. To build a notarized app on your own Mac:
+
+```bash
+# Once: save your notarization credentials in the keychain (Apple ID + app-specific password from account.apple.com)
+xcrun notarytool store-credentials pstviewer --apple-id you@example.com --team-id TEAMID
+
+SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./scripts/build-app.sh universal
+NOTARY_PROFILE=pstviewer ./scripts/notarize.sh
+```
+
+`security find-identity -v -p codesigning` lists the exact name of your certificate. If you don't have a **Developer ID Application** certificate yet, create one in Xcode → Settings → Accounts → Manage Certificates (or at developer.apple.com → Certificates).
+
+GitHub Actions does the same when these repository secrets are set (Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+|--------|-------|
+| `MACOS_CERTIFICATE_P12` | The Developer ID Application certificate with its private key, exported from Keychain Access as `.p12`, base64-encoded: `base64 -i cert.p12 \| pbcopy` |
+| `MACOS_CERTIFICATE_PASSWORD` | The password you chose when exporting the `.p12` |
+| `APPLE_ID` | Your Apple ID email address |
+| `APPLE_TEAM_ID` | Your 10-character Team ID (developer.apple.com → Account → Membership) |
+| `APPLE_APP_PASSWORD` | An app-specific password for that Apple ID (account.apple.com → Sign-In and Security) |
+
+Until all five secrets are set, the workflow builds an ad-hoc signed app as before.
 
 ## Settings
 
