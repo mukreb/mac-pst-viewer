@@ -31,7 +31,13 @@ A simple, fast viewer for Outlook archives (`.pst` and `.ost`) and old mbox mail
 
 ## Installation
 
-### Option 1: build it yourself (recommended)
+### Download (recommended)
+
+Download **[PST-Viewer.zip](https://github.com/mukreb/mac-pst-viewer/releases/latest/download/PST-Viewer.zip)** from the [latest release](https://github.com/mukreb/mac-pst-viewer/releases/latest), double-click it and drag **PST Viewer** to your Applications folder. The app is a universal app (Apple Silicon + Intel), signed with a Developer ID and notarized by Apple, so it opens with a double-click. It requires macOS 13 (Ventura) or later and keeps itself up to date (see [Updates](#updates)).
+
+You can open a `.pst` via **File → Open PST File or Mail Folder…** (⌘O), by dragging the file onto the window, or with "Open With" in the Finder.
+
+### Build it yourself
 
 Requires macOS 13 (Ventura) or later and the Xcode Command Line Tools (`xcode-select --install`). Building with Xcode 26 or Command Line Tools 26 gives the app the macOS 26 Liquid Glass look; older tools build the classic look.
 
@@ -42,11 +48,11 @@ cd mac-pst-viewer
 open "dist/PST Viewer.app"
 ```
 
-Then drag `dist/PST Viewer.app` to your Applications folder. You can open a `.pst` via **File → Open PST File or Mail Folder…** (⌘O), by dragging the file onto the window, or with "Open With" in the Finder.
+Then drag `dist/PST Viewer.app` to your Applications folder.
 
-### Option 2: ready-made download
+### Development builds
 
-Download `PST-Viewer.zip` from the [latest release](https://github.com/mukreb/mac-pst-viewer/releases/latest) (published by pushing a `v*` tag; signed and notarized like `main` builds). Releases keep themselves up to date (see [Updates](#updates)). Every build on GitHub Actions produces a universal app (Apple Silicon + Intel) that you can download under **Actions → Build → Artifacts → PST-Viewer-macOS**. Builds of `main` are signed with a Developer ID and notarized by Apple, so they open with a double-click. Builds of pull requests aren't; for those, the first time you have to right-click the app → **Open**, or run in Terminal:
+Every build on GitHub Actions produces a universal app that you can download under **Actions → Build → Artifacts → PST-Viewer-macOS**. Builds of `main` are signed and notarized like releases. Builds of pull requests aren't; for those, the first time you have to right-click the app → **Open**, or run in Terminal:
 
 ```bash
 xattr -dr com.apple.quarantine "PST Viewer.app"
@@ -96,7 +102,7 @@ git tag v1.1.0
 git push origin v1.1.0
 ```
 
-The Release workflow then builds, signs and notarizes the app with that version, and publishes a release with `PST-Viewer.zip` and notes generated from the merged pull requests. Only releases signed with the Developer ID (the secrets above) can be installed by the updater; it refuses others. Tags with a suffix, such as `v1.2.0-beta.1`, become pre-releases, which only the All builds channel installs. Every signed build of `main` is also published by the Build workflow as a pre-release named `build-<version>`; it keeps the 10 most recent. `./scripts/build-app.sh` gives a self-built app the version of the latest tag (or `APP_VERSION`, if set).
+The Release workflow then builds, signs and notarizes the app with that version, and publishes a release with `PST-Viewer.zip`. Its notes come from `.github/release-notes/<tag>.md` (for example `v1.1.0.md`) when that file exists, otherwise they're generated from the merged pull requests. The updater shows these notes to users, so write them for users. Only releases signed with the Developer ID (the secrets above) can be installed by the updater; it refuses others. Tags with a suffix, such as `v1.2.0-beta.1`, become pre-releases, which only the All builds channel installs. Every signed build of `main` is also published by the Build workflow as a pre-release named `build-<version>`; it keeps the 10 most recent. `./scripts/build-app.sh` gives a self-built app the version of the latest tag (or `APP_VERSION`, if set).
 
 ## Settings
 
