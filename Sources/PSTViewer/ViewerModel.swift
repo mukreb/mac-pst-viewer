@@ -189,8 +189,8 @@ final class ViewerModel: ObservableObject {
     private var searchTask: Task<Void, Never>?
     /// Incremented on every new search so results of superseded searches are ignored.
     private var searchGeneration = 0
-    /// The file the latest search ran in, to know when a file-scoped search must run again.
-    private var searchedStore: UUID?
+    /// The files the latest search ran in, to know when a file or all-files search must run again.
+    private var searchedStores: [UUID] = []
     private var loadTask: Task<Void, Never>?
 
     init() {
@@ -293,6 +293,8 @@ final class ViewerModel: ObservableObject {
             rows = []
         }
         searchResults = nil
+        // A search of the remaining files stays valid; show it again instead of an empty list.
+        if !searchText.isEmpty { scheduleSearch() }
     }
 
     /// Rebuilds the sidebar (after toggling system folders).
@@ -362,7 +364,7 @@ final class ViewerModel: ObservableObject {
         rows = []
         folderRows = []
         // Folder results depend on the folder, file results on the file; all-files results stay.
-        let needsNewSearch = searchScope == .folder || (searchScope == .file && searchedStore != selectedFolder?.store)
+        let needsNewSearch = searchScope == .folder || searchedStores != storesToSearch(searchScope).map(\.id)
         if needsNewSearch {
             searchTask?.cancel()
             searchGeneration += 1
@@ -397,6 +399,11 @@ final class ViewerModel: ObservableObject {
 
     // MARK: Search
 
+    /// The files a search with this scope looks in.
+    private func storesToSearch(_ scope: SearchScope) -> [OpenStore] {
+        scope == .all ? stores : stores.filter { $0.id == selectedFolder?.store }
+    }
+
     private func scheduleSearch() {
         searchTask?.cancel()
         searchGeneration += 1
@@ -412,8 +419,8 @@ final class ViewerModel: ObservableObject {
         let scope = searchScope
         let bodies = searchBodies
         let folderRows = self.folderRows
-        let stores = scope == .all ? self.stores : self.stores.filter { $0.id == selectedFolder?.store }
-        searchedStore = selectedFolder?.store
+        let stores = storesToSearch(scope)
+        searchedStores = stores.map(\.id)
         isSearching = true
         searchTask = Task.detached(priority: .userInitiated) {
             try? await Task.sleep(nanoseconds: 250_000_000)
