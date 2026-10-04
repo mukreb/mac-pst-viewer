@@ -2,6 +2,8 @@
 
 A simple, fast viewer for Outlook archives (`.pst` and `.ost`) and old mbox mail (Netscape, Mozilla, Thunderbird) on the Mac — no Outlook, no conversion, read-only. Built for old archives, but works with new ones too.
 
+**Website:** <https://mukreb.github.io/mac-pst-viewer/> — a plain-language introduction for users (English and Dutch).
+
 ![PST Viewer with an open archive](docs/screenshot-viewer.png)
 
 ## Features
@@ -44,9 +46,7 @@ Then drag `dist/PST Viewer.app` to your Applications folder. You can open a `.ps
 
 ### Option 2: ready-made download
 
-Download `PST-Viewer.zip` from the [latest release](https://github.com/mukreb/mac-pst-viewer/releases/latest). Releases are signed with a Developer ID and notarized by Apple, so they open with a double-click, and they keep themselves up to date (see [Updates](#updates)).
-
-Besides that, every build on GitHub Actions produces a universal app (Apple Silicon + Intel) that you can download under **Actions → Build → Artifacts → PST-Viewer-macOS**. Builds of `main` are signed with a Developer ID and notarized by Apple, so they open with a double-click. Builds of pull requests aren't; for those, the first time you have to right-click the app → **Open**, or run in Terminal:
+Download `PST-Viewer.zip` from the [latest release](https://github.com/mukreb/mac-pst-viewer/releases/latest) (published by pushing a `v*` tag; signed and notarized like `main` builds). Releases keep themselves up to date (see [Updates](#updates)). Every build on GitHub Actions produces a universal app (Apple Silicon + Intel) that you can download under **Actions → Build → Artifacts → PST-Viewer-macOS**. Builds of `main` are signed with a Developer ID and notarized by Apple, so they open with a double-click. Builds of pull requests aren't; for those, the first time you have to right-click the app → **Open**, or run in Terminal:
 
 ```bash
 xattr -dr com.apple.quarantine "PST Viewer.app"
@@ -96,7 +96,7 @@ git tag v1.1.0
 git push origin v1.1.0
 ```
 
-The Build workflow then builds, signs and notarizes the app with that version, and publishes a release with `PST-Viewer.zip` and notes generated from the merged pull requests. This needs the signing secrets above; without them a tag build fails. Tags with a suffix, such as `v1.2.0-beta.1`, become pre-releases, which only the All builds channel installs. Every signed build of `main` is also published as a pre-release named `build-<version>`; the workflow keeps the 10 most recent. `./scripts/build-app.sh` gives a self-built app the version of the latest tag (or `APP_VERSION`, if set).
+The Release workflow then builds, signs and notarizes the app with that version, and publishes a release with `PST-Viewer.zip` and notes generated from the merged pull requests. Only releases signed with the Developer ID (the secrets above) can be installed by the updater; it refuses others. Tags with a suffix, such as `v1.2.0-beta.1`, become pre-releases, which only the All builds channel installs. Every signed build of `main` is also published by the Build workflow as a pre-release named `build-<version>`; it keeps the 10 most recent. `./scripts/build-app.sh` gives a self-built app the version of the latest tag (or `APP_VERSION`, if set).
 
 ## Settings
 
