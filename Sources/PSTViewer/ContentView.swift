@@ -1,6 +1,7 @@
 import PSTKit
 import SwiftUI
 import UniformTypeIdentifiers
+import UpdateKit
 
 struct ContentView: View {
     @EnvironmentObject var model: ViewerModel
@@ -181,6 +182,9 @@ struct SettingsView: View {
     @AppStorage(AppSettings.languageKey) private var language = LanguageSetting.system.rawValue
     @AppStorage(AppSettings.appearanceKey) private var appearance: AppearanceSetting = .system
     @AppStorage(AppSettings.darkMessagesKey) private var darkMessages = true
+    @AppStorage(Updater.automaticKey) private var checkForUpdates = true
+    @AppStorage(Updater.channelKey) private var updateChannel: UpdateChannel = .releases
+    @ObservedObject private var updater = Updater.shared
 
     /// Updates `tr()` before the stored value changes, so every view that redraws sees the new language.
     private var languageBinding: Binding<LanguageSetting> {
@@ -248,6 +252,29 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            Section {
+                Toggle(isOn: $checkForUpdates) {
+                    Text(tr("Check for updates automatically", "Automatisch zoeken naar updates"))
+                    Text(tr("Once a day, looks on GitHub for a new release and asks before installing it.",
+                            "Kijkt eens per dag op GitHub of er een nieuwe versie is en vraagt het voordat die wordt geïnstalleerd."))
+                }
+                Picker(selection: $updateChannel) {
+                    Text(tr("Releases", "Releases")).tag(UpdateChannel.releases)
+                    Text(tr("All builds", "Alle builds")).tag(UpdateChannel.builds)
+                } label: {
+                    Text(tr("Install", "Installeer"))
+                    Text(tr("Releases are the tested versions. All builds also gets every change as soon as it is built, and test versions.",
+                            "Releases zijn de geteste versies. Alle builds krijgt ook elke wijziging zodra die gebouwd is, en testversies."))
+                }
+                LabeledContent(tr("Version \(updater.currentVersion)", "Versie \(updater.currentVersion)")) {
+                    Button(tr("Check Now", "Nu controleren")) {
+                        Task { await updater.check(userInitiated: true) }
+                    }
+                    .disabled(updater.isBusy)
+                }
+            } header: {
+                Text(tr("Updates", "Updates"))
             }
         }
         .formStyle(.grouped)

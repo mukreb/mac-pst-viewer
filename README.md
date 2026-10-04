@@ -46,7 +46,7 @@ Then drag `dist/PST Viewer.app` to your Applications folder. You can open a `.ps
 
 ### Option 2: ready-made download
 
-Download `PST-Viewer.zip` from the [latest release](https://github.com/mukreb/mac-pst-viewer/releases/latest) (published by pushing a `v*` tag; signed and notarized like `main` builds). Every build on GitHub Actions produces a universal app (Apple Silicon + Intel) that you can download under **Actions → Build → Artifacts → PST-Viewer-macOS**. Builds of `main` are signed with a Developer ID and notarized by Apple, so they open with a double-click. Builds of pull requests aren't; for those, the first time you have to right-click the app → **Open**, or run in Terminal:
+Download `PST-Viewer.zip` from the [latest release](https://github.com/mukreb/mac-pst-viewer/releases/latest) (published by pushing a `v*` tag; signed and notarized like `main` builds). Releases keep themselves up to date (see [Updates](#updates)). Every build on GitHub Actions produces a universal app (Apple Silicon + Intel) that you can download under **Actions → Build → Artifacts → PST-Viewer-macOS**. Builds of `main` are signed with a Developer ID and notarized by Apple, so they open with a double-click. Builds of pull requests aren't; for those, the first time you have to right-click the app → **Open**, or run in Terminal:
 
 ```bash
 xattr -dr com.apple.quarantine "PST Viewer.app"
@@ -78,6 +78,26 @@ GitHub Actions does the same when these repository secrets are set (Settings →
 
 Until all five secrets are set, the workflow builds an ad-hoc signed app as before.
 
+## Updates
+
+The app looks for a new [GitHub release](https://github.com/mukreb/mac-pst-viewer/releases) once a day at launch, and on demand with **PST Viewer → Check for Updates…** or the button in Settings. When there is one it shows the release notes and offers **Install and Relaunch**, **Later** or **Skip This Version**. Automatic checks can be turned off in Settings.
+
+Settings → Updates → **Install** chooses what to update to:
+
+- **Releases** (default): only versions published from a version tag, such as `v1.2.0`.
+- **All builds**: also every signed build of `main` and pre-releases. Builds of `main` are numbered after the latest release (`1.2.0.57` is build 57 after `v1.2.0`), so they sort between that release and the next one. (The Finder shows them as `1.2.0 (57)`, because macOS wants three numbers in the version.) Switching back to Releases never downgrades: you get the next release that is newer than the build you have.
+
+The update is downloaded, unpacked and checked before it replaces the app: it must be signed with a Developer ID of the same team as the running app, have the same bundle identifier and be the version that was offered. An app you built yourself (ad-hoc signed), or one that isn't in a folder it can write to, can't replace itself; for those the button opens the release page instead.
+
+To publish a release, push a version tag:
+
+```bash
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+The Release workflow then builds, signs and notarizes the app with that version, and publishes a release with `PST-Viewer.zip` and notes generated from the merged pull requests. Only releases signed with the Developer ID (the secrets above) can be installed by the updater; it refuses others. Tags with a suffix, such as `v1.2.0-beta.1`, become pre-releases, which only the All builds channel installs. Every signed build of `main` is also published by the Build workflow as a pre-release named `build-<version>`; it keeps the 10 most recent. `./scripts/build-app.sh` gives a self-built app the version of the latest tag (or `APP_VERSION`, if set).
+
 ## Settings
 
 Open **PST Viewer → Settings…** (⌘,) for:
@@ -85,6 +105,7 @@ Open **PST Viewer → Settings…** (⌘,) for:
 - **Language**: System default, English or Nederlands. The app's own texts switch immediately; menu items provided by macOS follow after restarting the app.
 - **Appearance**: System default, Light or Dark, and whether HTML messages get dark colours in dark mode.
 - **Show system folders**, **load remote images** and the **default character set** for old ANSI messages.
+- **Updates**: whether to check for new versions automatically, whether to install only releases or all builds, and a button to check now.
 
 <img src="docs/screenshot-settings.png" alt="Settings window" width="520">
 
@@ -146,7 +167,7 @@ swift run pstdump archive.pst --mbox sent.mbox --search "piet" --folder "verzond
 | `MIME.swift`, `MIMEContent.swift` | MIME parser (multipart, base64, quoted-printable, RFC 2047/2231, uuencode) |
 | `Localization.swift` | English/Dutch texts (`tr("English", "Nederlands")`) |
 
-The app itself (`Sources/PSTViewer`) is SwiftUI.
+The app itself (`Sources/PSTViewer`) is SwiftUI. `Sources/UpdateKit` holds the platform-independent part of the updater (version numbers, GitHub release data); `Updater.swift` in the app does the download, signature check and install.
 
 The file is opened memory-mapped and never modified.
 

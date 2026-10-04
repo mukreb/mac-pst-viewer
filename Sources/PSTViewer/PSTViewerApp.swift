@@ -24,8 +24,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AppDelegate.ensureMainWindow()
         }
 
-        // `--snapshot <file.png>`: render the main window to a PNG and quit (used by CI).
         let args = CommandLine.arguments
+        if !args.contains("--snapshot") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                Updater.shared.checkInBackgroundIfDue()
+            }
+        }
+
+        // `--snapshot <file.png>`: render the main window to a PNG and quit (used by CI).
         if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
             let out = URL(fileURLWithPath: args[i + 1])
             let settings = args.contains("--settings")
@@ -188,6 +194,11 @@ struct PSTViewerApp: App {
                 .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
         }
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button(t("Check for Updates…", "Zoek naar updates…")) {
+                    Task { await Updater.shared.check(userInitiated: true) }
+                }
+            }
             CommandGroup(replacing: .newItem) {
                 Button(t("Open PST File or Mail Folder…", "Open PST-bestand of mailmap…")) { model.showOpenPanel() }
                     .keyboardShortcut("o")
