@@ -117,9 +117,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "build-$APP_VERSION" dist/PST-Viewer.zip --target "$GITHUB_SHA" --prerelease \
-            --title "PST Viewer $APP_VERSION (build)" \
-            --notes "Automatic build of main at $GITHUB_SHA. Not a tested release."
+          if gh release view "build-$APP_VERSION" >/dev/null 2>&1; then
+            # A re-run keeps its run number, so the release already exists.
+            gh release upload "build-$APP_VERSION" dist/PST-Viewer.zip --clobber
+          else
+            gh release create "build-$APP_VERSION" dist/PST-Viewer.zip --target "$GITHUB_SHA" --prerelease \
+              --title "PST Viewer $APP_VERSION (build)" \
+              --notes "Automatic build of main at $GITHUB_SHA. Not a tested release."
+          fi
           # Keep the 10 most recent builds.
           gh release list --limit 100 --json tagName,createdAt \
             --jq '[.[] | select(.tagName | startswith("build-"))] | sort_by(.createdAt) | reverse | .[10:] | .[].tagName' |
