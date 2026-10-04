@@ -28,7 +28,9 @@ else
 fi
 
 # Notarization rejects ad-hoc signatures and signatures without the hardened runtime.
-if ! codesign -dv "$APP" 2>&1 | grep -q "Authority=Developer ID Application"; then
+# (Read the output first: with pipefail, `grep -q` closing the pipe early would fail the check.)
+SIGNATURE="$(codesign -dvv "$APP" 2>&1 || true)"
+if [[ "$SIGNATURE" != *"Authority=Developer ID Application"* ]]; then
   echo "✗ $APP isn't signed with a Developer ID certificate; build it with SIGN_IDENTITY set" >&2
   exit 1
 fi
