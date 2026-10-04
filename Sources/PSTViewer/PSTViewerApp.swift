@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         AttachmentBar.purgeTemporaryFiles()
+        AppDelegate.registerWithLaunchServices()
 
         // Safety net: make sure there is always a main window.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -62,6 +63,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     static var settingsSnapshotWindow: NSWindow?
+
+    /// Tells Launch Services about this copy of the app, so the Finder offers it under "Open With"
+    /// for .pst and .ost files. The Finder normally does this itself when an app is copied into
+    /// Applications, but not always after an in-place update or for an app started elsewhere.
+    /// Skipped for bare executables (`swift run`) and for translocated copies, which macOS runs
+    /// from a temporary read-only location.
+    static func registerWithLaunchServices() {
+        let bundle = Bundle.main.bundleURL
+        guard bundle.pathExtension == "app", !bundle.path.contains("/AppTranslocation/") else { return }
+        LSRegisterURL(bundle as CFURL, false)
+    }
 
     static func snapshot(to url: URL, preferKeyWindow: Bool = false) {
         for w in NSApp.windows {
@@ -202,6 +214,10 @@ struct PSTViewerApp: App {
             CommandGroup(replacing: .newItem) {
                 Button(t("Open PST File or Mail Folder…", "Open PST-bestand of mailmap…")) { model.showOpenPanel() }
                     .keyboardShortcut("o")
+                Menu(t("Open Recent", "Open recent")) {
+                    RecentFilesMenuItems()
+                        .environmentObject(model)
+                }
             }
             CommandGroup(after: .importExport) {
                 Button(t("Export Selected Message as .eml…", "Exporteer geselecteerd bericht als .eml…")) {

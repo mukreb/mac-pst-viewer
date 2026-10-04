@@ -132,15 +132,16 @@ struct MessageRow: Identifiable, Hashable {
     var attachmentSort: Int { summary.hasAttachments ? 1 : 0 }
 }
 
+/// Where a search looks. The picker names the actual folder and file, so it is always clear
+/// what "this folder" means and whether other open files are included.
 enum SearchScope: String, CaseIterable, Identifiable {
-    case folder, all
+    /// The folder selected in the sidebar.
+    case folder
+    /// Every folder of the file (PST or mail folder) the selected folder belongs to.
+    case file
+    /// Every folder of every open file.
+    case all
     var id: String { rawValue }
-    var title: String {
-        switch self {
-        case .folder: return tr("This Folder", "Deze map")
-        case .all: return tr("All Folders", "Alle mappen")
-        }
-    }
 }
 
 @MainActor
@@ -188,6 +189,8 @@ final class ViewerModel: ObservableObject {
     private var searchTask: Task<Void, Never>?
     /// Incremented on every new search so results of superseded searches are ignored.
     private var searchGeneration = 0
+    /// The files the latest search ran in, to know when a file or all-files search must run again.
+    private var searchedStores: [UUID] = []
     private var loadTask: Task<Void, Never>?
 
     init() {
@@ -199,6 +202,22 @@ final class ViewerModel: ObservableObject {
     var recentFiles: [URL] {
         get { (try? JSONDecoder().decode([URL].self, from: recentFilesData)) ?? [] }
         set { recentFilesData = (try? JSONEncoder().encode(Array(newValue.prefix(10)))) ?? Data() }
+    }
+
+    /// Recent files that still exist, newest first: shown on the welcome screen, under the
+    /// toolbar's open button and in File → Open Recent.
+    var availableRecentFiles: [URL] {
+        recentFiles.filter { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    func isOpen(_ url: URL) -> Bool {
+        stores.contains { $0.file.url.standardizedFileURL.path == url.standardizedFileURL.path }
+    }
+
+    func clearRecentFiles() {
+        objectWillChange.send()
+        recentFiles = []
+        NSDocumentController.shared.clearRecentDocuments(nil)
     }
 
     func showOpenPanel() {
@@ -267,12 +286,15 @@ final class ViewerModel: ObservableObject {
     func close(_ store: OpenStore) {
         invalidateSearch()
         stores.removeAll { $0.id == store.id }
+        if stores.count < 2 && searchScope == .all { searchScope = .file }
         if selectedFolder?.store == store.id {
             selectedFolder = nil
             selectedMessage = nil
             rows = []
         }
         searchResults = nil
+        // A search of the remaining files stays valid; show it again instead of an empty list.
+        if !searchText.isEmpty { scheduleSearch() }
     }
 
     /// Rebuilds the sidebar (after toggling system folders).
@@ -289,6 +311,32 @@ final class ViewerModel: ObservableObject {
             ?? store.allNodes.first { $0.folder.contentCount > 0 }
             ?? store.allNodes.first
         selectedFolder = preferred?.ref
+    }
+
+    // MARK: Search scope
+
+    /// The scopes that make sense right now: "all open files" only once a second file is open.
+    var availableSearchScopes: [SearchScope] { stores.count > 1 ? [.folder, .file, .all] : [.folder, .file] }
+
+    /// The picker label for a scope: the folder's and file's own names rather than "this folder".
+    func title(for scope: SearchScope) -> String {
+        switch scope {
+        case .folder: return folderNode(selectedFolder)?.name ?? tr("This Folder", "Deze map")
+        case .file: return store(selectedFolder?.store)?.fileName ?? tr("This File", "Dit bestand")
+        case .all: return tr("All \(stores.count) Open Files", "Alle \(stores.count) open bestanden")
+        }
+    }
+
+    /// A sentence describing where `searchResults` were found, e.g. "in Inbox (archive.pst)".
+    var searchResultsLocation: String {
+        let file = store(selectedFolder?.store)?.fileName ?? ""
+        switch searchResultsScope {
+        case .folder:
+            let folder = folderNode(selectedFolder)?.name ?? ""
+            return stores.count > 1 ? tr("in \(folder) (\(file))", "in \(folder) (\(file))") : tr("in \(folder)", "in \(folder)")
+        case .file: return tr("in all folders of \(file)", "in alle mappen van \(file)")
+        case .all: return tr("in all open files", "in alle open bestanden")
+        }
     }
 
     // MARK: Lookup
@@ -315,7 +363,9 @@ final class ViewerModel: ObservableObject {
         // Don't leave the previous folder's rows (or a folder-scoped search) visible while loading.
         rows = []
         folderRows = []
-        if searchScope == .folder {
+        // Folder results depend on the folder, file results on the file; all-files results stay.
+        let needsNewSearch = searchScope == .folder || searchedStores != storesToSearch(searchScope).map(\.id)
+        if needsNewSearch {
             searchTask?.cancel()
             searchGeneration += 1
             searchResults = nil
@@ -342,12 +392,17 @@ final class ViewerModel: ObservableObject {
                     self.autoSelectFirstMessage = false
                     self.selectedMessage = first.ref
                 }
-                if !self.searchText.isEmpty { self.scheduleSearch() }
+                if needsNewSearch && !self.searchText.isEmpty { self.scheduleSearch() }
             }
         }
     }
 
     // MARK: Search
+
+    /// The files a search with this scope looks in.
+    private func storesToSearch(_ scope: SearchScope) -> [OpenStore] {
+        scope == .all ? stores : stores.filter { $0.id == selectedFolder?.store }
+    }
 
     private func scheduleSearch() {
         searchTask?.cancel()
@@ -364,7 +419,8 @@ final class ViewerModel: ObservableObject {
         let scope = searchScope
         let bodies = searchBodies
         let folderRows = self.folderRows
-        let stores = self.stores
+        let stores = storesToSearch(scope)
+        searchedStores = stores.map(\.id)
         isSearching = true
         searchTask = Task.detached(priority: .userInitiated) {
             try? await Task.sleep(nanoseconds: 250_000_000)
@@ -398,7 +454,7 @@ final class ViewerModel: ObservableObject {
                     if Task.isCancelled { return }
                     if matches(row, file: s.file) { results.append(row) }
                 }
-            case .all:
+            case .file, .all:
                 var seen = Set<MessageRef>()
                 for s in stores {
                     for node in s.allNodes {

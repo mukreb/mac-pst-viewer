@@ -52,12 +52,19 @@ struct SidebarView: View {
         .listStyle(.sidebar)
         .toolbar {
             ToolbarItem {
-                Button {
-                    model.showOpenPanel()
+                // Clicking opens the file dialog straight away; the arrow shows the recent files,
+                // the same list as on the welcome screen.
+                Menu {
+                    Button(tr("Open PST File or Mail Folder…", "Open PST-bestand of mailmap…")) { model.showOpenPanel() }
+                    Divider()
+                    RecentFilesMenuItems()
                 } label: {
                     Label(tr("Open", "Open"), systemImage: "plus")
+                } primaryAction: {
+                    model.showOpenPanel()
                 }
-                .help(tr("Open another PST file or mail folder", "Nog een PST-bestand of mailmap openen"))
+                .help(tr("Open another PST file or mail folder; the arrow shows recently opened files",
+                         "Nog een PST-bestand of mailmap openen; het pijltje toont recent geopende bestanden"))
             }
         }
         .sheet(item: $infoStore) { store in

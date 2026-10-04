@@ -33,8 +33,10 @@ struct MessageListView: View {
                     EmptyStateView(symbol: "magnifyingglass", title: tr("Searching…", "Zoeken…"), subtitle: "")
                 } else if model.searchResults != nil {
                     EmptyStateView(symbol: "magnifyingglass", title: tr("No Results", "Geen resultaten"),
-                                   subtitle: tr("Try other search terms or search all folders.",
-                                                "Probeer andere zoektermen of zoek in alle mappen."))
+                                   subtitle: model.searchResultsScope == .all
+                                       ? tr("Try other search terms.", "Probeer andere zoektermen.")
+                                       : tr("Try other search terms or search a wider scope.",
+                                            "Probeer andere zoektermen of zoek breder."))
                 } else {
                     EmptyStateView(symbol: "tray", title: tr("This Folder Is Empty", "Deze map is leeg"), subtitle: "")
                 }
@@ -71,12 +73,18 @@ struct MessageListView: View {
     var searchBar: some View {
         HStack(spacing: 10) {
             if !model.searchText.isEmpty {
-                Picker(tr("Scope", "Bereik"), selection: $model.searchScope) {
-                    ForEach(SearchScope.allCases) { Text($0.title).tag($0) }
+                Text(tr("Search in:", "Zoek in:"))
+                    .foregroundStyle(.secondary)
+                Picker(tr("Search in", "Zoek in"), selection: $model.searchScope) {
+                    ForEach(model.availableSearchScopes) { scope in
+                        Text(Self.shortened(model.title(for: scope))).tag(scope)
+                    }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .fixedSize()
+                .help(tr("The selected folder, every folder of its file, or every open file",
+                         "De geselecteerde map, alle mappen van het bestand, of alle open bestanden"))
                 Toggle(tr("Include message text", "Ook in tekst"), isOn: $model.searchBodies)
                     .toggleStyle(.checkbox)
                     .help(tr("Also search message text, attachment names and email addresses (slower)",
@@ -97,6 +105,13 @@ struct MessageListView: View {
         .padding(.vertical, 6)
     }
 
+    /// Keeps long folder and file names from stretching the scope picker.
+    static func shortened(_ name: String, max: Int = 28) -> String {
+        guard name.count > max else { return name }
+        let half = (max - 1) / 2
+        return String(name.prefix(half)) + "…" + String(name.suffix(max - 1 - half))
+    }
+
     var countText: String {
         let n = model.visibleRows.count
         let unread = model.visibleRows.filter { !$0.summary.isRead }.count
@@ -112,9 +127,11 @@ struct MessageListView: View {
         return s
     }
 
-    /// With several files open, also says which file the folder belongs to.
+    /// With several files open, also says which file the folder belongs to; while searching,
+    /// says where the results come from.
     var subtitle: String {
-        guard model.stores.count > 1, model.searchResults == nil,
+        if model.searchResults != nil { return model.searchResultsLocation + " · " + countText }
+        guard model.stores.count > 1,
               let store = model.store(model.selectedFolder?.store) else { return countText }
         return store.fileName + " · " + countText
     }
