@@ -181,6 +181,8 @@ struct SettingsView: View {
     @AppStorage(AppSettings.languageKey) private var language = LanguageSetting.system.rawValue
     @AppStorage(AppSettings.appearanceKey) private var appearance: AppearanceSetting = .system
     @AppStorage(AppSettings.darkMessagesKey) private var darkMessages = true
+    @AppStorage(Updater.automaticKey) private var checkForUpdates = true
+    @ObservedObject private var updater = Updater.shared
 
     /// Updates `tr()` before the stored value changes, so every view that redraws sees the new language.
     private var languageBinding: Binding<LanguageSetting> {
@@ -248,6 +250,21 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            Section {
+                Toggle(isOn: $checkForUpdates) {
+                    Text(tr("Check for updates automatically", "Automatisch zoeken naar updates"))
+                    Text(tr("Once a day, looks on GitHub for a new release and asks before installing it.",
+                            "Kijkt eens per dag op GitHub of er een nieuwe versie is en vraagt het voordat die wordt geïnstalleerd."))
+                }
+                LabeledContent(tr("Version \(updater.currentVersion)", "Versie \(updater.currentVersion)")) {
+                    Button(tr("Check Now", "Nu controleren")) {
+                        Task { await updater.check(userInitiated: true) }
+                    }
+                    .disabled(updater.isBusy)
+                }
+            } header: {
+                Text(tr("Updates", "Updates"))
             }
         }
         .formStyle(.grouped)

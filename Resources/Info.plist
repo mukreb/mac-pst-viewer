@@ -33,6 +33,8 @@
 	<string>public.app-category.productivity</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>PSTUpdateRepository</key>
+	<string>mukreb/mac-pst-viewer</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>MIT License</string>
 	<key>CFBundleDocumentTypes</key>

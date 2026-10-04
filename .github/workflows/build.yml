@@ -3,18 +3,34 @@ name: Build
 on:
   push:
     branches: [main]
+    # A version tag (v1.2.0) also publishes a GitHub release, which the app's updater installs.
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
 jobs:
   macos:
     runs-on: macos-26
+    permissions:
+      contents: write  # for publishing releases
     env:
       # Signing and notarization run when all their secrets are set (see "Notarized builds" in the
       # README) and never for pull requests, which don't need a distributable app.
       NOTARIZE: ${{ secrets.MACOS_CERTIFICATE_P12 != '' && secrets.MACOS_CERTIFICATE_PASSWORD != '' && secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_APP_PASSWORD != '' && github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # tags, so build-app.sh can stamp the version
+      - name: Release version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          # The updater only installs releases signed with the same Developer ID as the running app.
+          if [[ "$NOTARIZE" != "true" ]]; then
+            echo "::error::Releases must be signed and notarized; set the secrets from \"Notarized builds\" in the README."
+            exit 1
+          fi
+          echo "APP_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
       - name: Swift version
         run: swift --version
       - name: Test PSTKit
@@ -71,6 +87,20 @@ jobs:
         with:
           name: PST-Viewer-macOS
           path: dist/PST-Viewer.zip
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/PST-Viewer.zip --clobber
+          else
+            # Tags with a suffix (v1.2.0-beta.1) become pre-releases, which the updater ignores.
+            FLAGS=()
+            if [[ "$GITHUB_REF_NAME" == *-* ]]; then FLAGS=(--prerelease); fi
+            gh release create "$GITHUB_REF_NAME" dist/PST-Viewer.zip --verify-tag --generate-notes \
+              --title "PST Viewer ${GITHUB_REF_NAME#v}" ${FLAGS[@]+"${FLAGS[@]}"}
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: screenshots
