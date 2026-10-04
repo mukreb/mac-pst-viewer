@@ -66,6 +66,10 @@ jobs:
             # "All builds" channel offers.
             FLAGS=()
             if [[ "$GITHUB_REF_NAME" == *-* ]]; then FLAGS=(--prerelease); fi
-            gh release create "$GITHUB_REF_NAME" dist/PST-Viewer.zip --title "PST Viewer $GITHUB_REF_NAME" --generate-notes \
-              ${FLAGS[@]+"${FLAGS[@]}"}
+            # Hand-written notes for users in .github/release-notes/<tag>.md win over notes generated
+            # from the merged pull requests. The updater shows them before installing.
+            NOTES=".github/release-notes/$GITHUB_REF_NAME.md"
+            if [[ -f "$NOTES" ]]; then FLAGS+=(--notes-file "$NOTES"); else FLAGS+=(--generate-notes); fi
+            TITLE="PST Viewer ${GITHUB_REF_NAME#v}"
+            gh release create "$GITHUB_REF_NAME" dist/PST-Viewer.zip --title "$TITLE" "${FLAGS[@]}"
           fi
