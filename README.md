@@ -2,6 +2,8 @@
 
 A simple, fast viewer for Outlook archives (`.pst` and `.ost`) and old mbox mail (Netscape, Mozilla, Thunderbird) on the Mac — no Outlook, no conversion, read-only. Built for old archives, but works with new ones too.
 
+**Website:** <https://mukreb.github.io/mac-pst-viewer/> — a plain-language introduction for users (English and Dutch).
+
 ![PST Viewer with an open archive](docs/screenshot-viewer.png)
 
 ## Features
@@ -44,7 +46,7 @@ Then drag `dist/PST Viewer.app` to your Applications folder. You can open a `.ps
 
 ### Option 2: ready-made download
 
-Every build on GitHub Actions produces a universal app (Apple Silicon + Intel) that you can download under **Actions → Build → Artifacts → PST-Viewer-macOS**. Builds of `main` are signed with a Developer ID and notarized by Apple, so they open with a double-click. Builds of pull requests aren't; for those, the first time you have to right-click the app → **Open**, or run in Terminal:
+Download `PST-Viewer.zip` from the [latest release](https://github.com/mukreb/mac-pst-viewer/releases/latest) (published by pushing a `v*` tag; signed and notarized like `main` builds). Every build on GitHub Actions produces a universal app (Apple Silicon + Intel) that you can download under **Actions → Build → Artifacts → PST-Viewer-macOS**. Builds of `main` are signed with a Developer ID and notarized by Apple, so they open with a double-click. Builds of pull requests aren't; for those, the first time you have to right-click the app → **Open**, or run in Terminal:
 
 ```bash
 xattr -dr com.apple.quarantine "PST Viewer.app"
