@@ -45,16 +45,26 @@
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
-			<string>Alternate</string>
+			<string>Default</string>
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.microsoft.outlook.pst</string>
 				<string>com.microsoft.outlook.ost</string>
 			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Outlook Data File</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Default</string>
 			<key>CFBundleTypeExtensions</key>
 			<array>
 				<string>pst</string>
 				<string>ost</string>
+				<string>PST</string>
+				<string>OST</string>
 			</array>
 		</dict>
 		<dict>

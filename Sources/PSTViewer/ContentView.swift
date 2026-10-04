@@ -140,7 +140,7 @@ struct WelcomeView: View {
                 .font(.callout)
                 .foregroundStyle(.tertiary)
 
-            let recents = model.recentFiles.filter { FileManager.default.fileExists(atPath: $0.path) }
+            let recents = model.availableRecentFiles
             if !recents.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(tr("Recently Opened", "Recent geopend"))
@@ -150,10 +150,10 @@ struct WelcomeView: View {
                             model.open(url)
                         } label: {
                             HStack {
-                                Image(systemName: url.hasDirectoryPath ? "folder" : "doc")
+                                Image(systemName: RecentFile.symbol(for: url))
                                 VStack(alignment: .leading) {
                                     Text(url.lastPathComponent)
-                                    Text(url.deletingLastPathComponent().path)
+                                    Text(RecentFile.location(of: url))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
@@ -171,6 +171,47 @@ struct WelcomeView: View {
         }
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// How a recent file is presented, the same on the welcome screen and in the menus.
+enum RecentFile {
+    static func symbol(for url: URL) -> String { url.hasDirectoryPath ? "folder" : "doc" }
+
+    /// The folder the file is in, with the home folder shortened to "~".
+    static func location(of url: URL) -> String {
+        (url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath
+    }
+}
+
+/// The recent files as menu items, for the toolbar's open button and File → Open Recent.
+/// Files that are already open are checked; choosing one shows it in the sidebar.
+struct RecentFilesMenuItems: View {
+    @EnvironmentObject var model: ViewerModel
+
+    var body: some View {
+        let recents = model.availableRecentFiles
+        Section(tr("Recently Opened", "Recent geopend")) {
+            if recents.isEmpty {
+                Text(tr("No Recent Files", "Geen recente bestanden"))
+            }
+            ForEach(recents, id: \.self) { url in
+                Button {
+                    model.open(url)
+                } label: {
+                    if model.isOpen(url) {
+                        Label(url.lastPathComponent + "  —  " + RecentFile.location(of: url), systemImage: "checkmark")
+                    } else {
+                        Label(url.lastPathComponent + "  —  " + RecentFile.location(of: url), systemImage: RecentFile.symbol(for: url))
+                    }
+                }
+                .help(url.path)
+            }
+        }
+        if !recents.isEmpty {
+            Divider()
+            Button(tr("Clear Menu", "Wis menu")) { model.clearRecentFiles() }
+        }
     }
 }
 

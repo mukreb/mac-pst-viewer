@@ -17,7 +17,8 @@ A simple, fast viewer for Outlook archives (`.pst` and `.ost`) and old mbox mail
 - **Sent items show recipients**: in Sent Items, Outbox and Drafts the list shows who a message went to (To, or Cc) instead of yourself.
 - **Attachments**: Quick Look, open, save, or save all at once. Attached messages (forwarded mail) can be opened in turn.
 - **Contacts, calendar items and tasks** with their own fields (email, phone, start/end, location…).
-- **Search** by subject, sender or recipient, in the current folder or in all folders, optionally in the message text and email addresses as well.
+- **Search** by subject, sender or recipient, in the selected folder, in all folders of its file, or in all open files (the search bar names the folder and file it searches), optionally in the message text and email addresses as well.
+- **Recently opened files** on the welcome screen, under the toolbar's open button (click the arrow) and in **File → Open Recent**.
 - **Sorting** by sender, subject, date and size; unread messages in bold.
 - **Export** to `.eml` (opens in Apple Mail), a whole folder as `.eml` files, or as `.mbox` (imports into Apple Mail and Thunderbird). Selected messages — for example all search results — can also be exported as one `.mbox` file.
 - **Headers and all MAPI properties** for anyone who wants to know exactly what's inside.
@@ -35,7 +36,7 @@ A simple, fast viewer for Outlook archives (`.pst` and `.ost`) and old mbox mail
 
 Download **[PST-Viewer.zip](https://github.com/mukreb/mac-pst-viewer/releases/latest/download/PST-Viewer.zip)** from the [latest release](https://github.com/mukreb/mac-pst-viewer/releases/latest), double-click it and drag **PST Viewer** to your Applications folder. The app is a universal app (Apple Silicon + Intel), signed with a Developer ID and notarized by Apple, so it opens with a double-click. It requires macOS 13 (Ventura) or later and keeps itself up to date (see [Updates](#updates)).
 
-You can open a `.pst` via **File → Open PST File or Mail Folder…** (⌘O), by dragging the file onto the window, or with "Open With" in the Finder.
+You can open a `.pst` via **File → Open PST File or Mail Folder…** (⌘O), by dragging the file onto the window, or with "Open With" in the Finder (PST Viewer also becomes the default app for `.pst` and `.ost` files when no other app, such as Outlook, claims them).
 
 ### Build it yourself
 
