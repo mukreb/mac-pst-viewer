@@ -208,7 +208,8 @@
     </div>
     <div class="hero-shot">
       <img class="shot" src="screenshot-viewer.png" width="984" height="637"
-           alt="PST Viewer met een geopend Outlook-archief: mappen links, berichten in het midden, het gekozen bericht rechts">
+           alt="PST Viewer met een geopend Outlook-archief: mappen links, berichten in het midden, het gekozen bericht rechts"
+             data-alt-nl="PST Viewer met een geopend Outlook-archief: mappen links, berichten in het midden, het gekozen bericht rechts" data-alt-en="PST Viewer with an open Outlook archive: folders on the left, messages in the middle, the selected message on the right">
     </div>
   </div>
 </section>
@@ -305,14 +306,16 @@
       </div>
       <div class="media">
         <img class="shot" src="screenshot-ansi.png" width="984" height="637" loading="lazy"
-             alt="Een agenda-item uit een oud Outlook-archief, met begin- en eindtijd en locatie">
+             alt="Een agenda-item uit een oud Outlook-archief, met begin- en eindtijd en locatie"
+             data-alt-nl="Een agenda-item uit een oud Outlook-archief, met begin- en eindtijd en locatie" data-alt-en="A calendar item from an old Outlook archive, with start and end time and location">
       </div>
     </div>
 
     <div class="split">
       <div class="media">
         <img class="shot narrow" src="screenshot-settings.png" width="520" height="623" loading="lazy"
-             alt="Het instellingenvenster van PST Viewer met taal, weergave en tekenset">
+             alt="Het instellingenvenster van PST Viewer met taal, weergave en tekenset"
+             data-alt-nl="Het instellingenvenster van PST Viewer met taal, weergave en tekenset" data-alt-en="The PST Viewer settings window with language, appearance and character set">
       </div>
       <div>
         <h2 style="text-align:left"><span lang="nl">Voelt als een echte Mac-app</span><span lang="en">Feels like a real Mac app</span></h2>
@@ -345,10 +348,10 @@
         </p>
       </div>
       <div class="step">
-        <h3><span lang="nl">De eerste keer openen</span><span lang="en">Open it the first time</span></h3>
+        <h3><span lang="nl">De app starten</span><span lang="en">Start the app</span></h3>
         <p>
-          <span lang="nl">Je Mac waarschuwt dat de app niet door Apple is gecontroleerd. Dat is normaal voor gratis apps zoals deze — hieronder staat precies wat je doet.</span>
-          <span lang="en">Your Mac warns that Apple hasn't checked the app. That's normal for free apps like this one — see below for exactly what to do.</span>
+          <span lang="nl">Dubbelklik PST Viewer in je map Apps. De eerste keer vraagt je Mac of je een app van internet wilt openen: klik op <strong>Open</strong>.</span>
+          <span lang="en">Double-click PST Viewer in your Applications folder. The first time, your Mac asks whether you want to open an app from the internet: click <strong>Open</strong>.</span>
         </p>
       </div>
       <div class="step">
@@ -360,11 +363,11 @@
       </div>
     </div>
 
-    <!-- Gatekeeper workaround: remove this note (and step 2 above) once releases are notarized. -->
+    <!-- Fallback for builds that aren't notarized (e.g. test builds from pull requests). -->
     <div class="note" id="eerste-keer">
       <div lang="nl">
-        <p><strong>De eerste keer openen, stap voor stap</strong></p>
-        <p>PST Viewer is gratis en heeft geen betaald Apple-ontwikkelaarsaccount. Daarom zegt je Mac de eerste keer dat hij de app „niet kan controleren”. Zo open je hem toch:</p>
+        <p><strong>Zegt je Mac dat hij de app „niet kan controleren”?</strong></p>
+        <p>Dat gebeurt alleen bij een testversie die niet door Apple is gecontroleerd. Zo open je hem toch:</p>
         <ol>
           <li>Dubbelklik PST Viewer in je map Apps. Klik in de melding op <strong>Gereed</strong> (of <strong>OK</strong>).</li>
           <li>Open <strong>Systeeminstellingen → Privacy en beveiliging</strong> en scrol naar beneden.</li>
@@ -373,8 +376,8 @@
         <p>Op macOS 13 en 14 kan het ook sneller: klik met de rechtermuisknop (of <kbd>ctrl</kbd>-klik) op de app, kies <strong>Open</strong> en dan nog eens <strong>Open</strong>. Daarna start de app voortaan gewoon met een dubbelklik.</p>
       </div>
       <div lang="en">
-        <p><strong>Opening it the first time, step by step</strong></p>
-        <p>PST Viewer is free and doesn't have a paid Apple developer account. That's why your Mac says the first time that it "can't verify" the app. Here's how to open it anyway:</p>
+        <p><strong>Does your Mac say it "can't verify" the app?</strong></p>
+        <p>That only happens with a test build that Apple hasn't checked. Here's how to open it anyway:</p>
         <ol>
           <li>Double-click PST Viewer in Applications. In the message, click <strong>Done</strong> (or <strong>OK</strong>).</li>
           <li>Open <strong>System Settings → Privacy &amp; Security</strong> and scroll down.</li>
@@ -492,6 +495,9 @@
     function setLang(lang) {
       root.lang = lang;
       document.title = titles[lang];
+      document.querySelectorAll("[data-alt-" + lang + "]").forEach(function (img) {
+        img.alt = img.getAttribute("data-alt-" + lang);
+      });
       document.querySelectorAll("[data-set-lang]").forEach(function (b) {
         b.setAttribute("aria-pressed", String(b.dataset.setLang === lang));
       });
