@@ -31,6 +31,16 @@ jobs:
           fi
           echo "APP_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
           echo "BUILD_NUMBER=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+      - name: Build version
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          # Builds of main are numbered after the latest release: v1.2.0 → 1.2.0.<run>. That is newer
+          # than v1.2.0 and older than the next release, which the "All builds" update channel relies on.
+          BASE="$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-*' 2>/dev/null || echo v0.0.0)"
+          BASE="${BASE#v}"
+          while [[ "$(tr -cd . <<< "$BASE" | wc -c | tr -d ' ')" -lt 2 ]]; do BASE="$BASE.0"; done
+          echo "APP_VERSION=$BASE.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
       - name: Swift version
         run: swift --version
       - name: Test PSTKit
@@ -101,6 +111,19 @@ jobs:
             gh release create "$GITHUB_REF_NAME" dist/PST-Viewer.zip --verify-tag --generate-notes \
               --title "PST Viewer ${GITHUB_REF_NAME#v}" ${FLAGS[@]+"${FLAGS[@]}"}
           fi
+      - name: Publish build
+        # Every signed build of main becomes a pre-release for the updater's "All builds" channel.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.NOTARIZE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "build-$APP_VERSION" dist/PST-Viewer.zip --target "$GITHUB_SHA" --prerelease \
+            --title "PST Viewer $APP_VERSION (build)" \
+            --notes "Automatic build of main at $GITHUB_SHA. Not a tested release."
+          # Keep the 10 most recent builds.
+          gh release list --limit 100 --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | startswith("build-"))] | sort_by(.createdAt) | reverse | .[10:] | .[].tagName' |
+            while read -r TAG; do gh release delete "$TAG" --cleanup-tag --yes; done
       - uses: actions/upload-artifact@v4
         with:
           name: screenshots

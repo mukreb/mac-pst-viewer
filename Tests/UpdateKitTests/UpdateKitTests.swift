@@ -59,11 +59,27 @@ final class UpdateKitTests: XCTestCase {
         XCTAssertNil(AvailableUpdate(current: v("1.0"), release: pre))
     }
 
-    func testLatestReleaseURL() {
-        XCTAssertEqual(latestReleaseURL(repository: "mukreb/mac-pst-viewer")?.absoluteString,
+    func testBuildsChannel() throws {
+        let tagged = try GitHubRelease.decode(Data(json.utf8))
+        let build = try GitHubRelease.decode(Data(json
+            .replacingOccurrences(of: "\"v1.2.0\"", with: "\"build-1.2.0.57\"")
+            .replacingOccurrences(of: "\"prerelease\": false", with: "\"prerelease\": true").utf8))
+        XCTAssertEqual(build.version, v("1.2.0.57"))
+        let releases = [build, tagged]
+        XCTAssertEqual(AvailableUpdate.newest(current: v("1.1.0.40"), in: releases, channel: .builds)?.version, v("1.2.0.57"))
+        XCTAssertEqual(AvailableUpdate.newest(current: v("1.1.0.40"), in: releases, channel: .releases)?.version, v("1.2.0"))
+        // A build of main after a release is newer than that release, so no downgrade is offered.
+        XCTAssertNil(AvailableUpdate.newest(current: v("1.2.0.57"), in: releases, channel: .releases))
+        XCTAssertNil(AvailableUpdate.newest(current: v("1.2.0.57"), in: releases, channel: .builds))
+    }
+
+    func testReleasesURL() {
+        XCTAssertEqual(releasesURL(repository: "mukreb/mac-pst-viewer", channel: .releases)?.absoluteString,
                        "https://api.github.com/repos/mukreb/mac-pst-viewer/releases/latest")
-        XCTAssertNil(latestReleaseURL(repository: "mukreb"))
-        XCTAssertNil(latestReleaseURL(repository: "a/b/c"))
-        XCTAssertNil(latestReleaseURL(repository: "a/b?x=1"))
+        XCTAssertEqual(releasesURL(repository: "mukreb/mac-pst-viewer", channel: .builds)?.absoluteString,
+                       "https://api.github.com/repos/mukreb/mac-pst-viewer/releases?per_page=30")
+        XCTAssertNil(releasesURL(repository: "mukreb", channel: .releases))
+        XCTAssertNil(releasesURL(repository: "a/b/c", channel: .releases))
+        XCTAssertNil(releasesURL(repository: "a/b?x=1", channel: .releases))
     }
 }

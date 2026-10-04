@@ -15,6 +15,11 @@ final class Updater: ObservableObject {
     static let automaticKey = "checkForUpdatesAutomatically"
     static let lastCheckKey = "lastUpdateCheck"
     static let skippedVersionKey = "skippedUpdateVersion"
+    static let channelKey = "updateChannel"
+
+    static var channel: UpdateChannel {
+        UpdateChannel(rawValue: UserDefaults.standard.string(forKey: channelKey) ?? "") ?? .releases
+    }
 
     @Published private(set) var isBusy = false
 
@@ -46,7 +51,8 @@ final class Updater: ObservableObject {
         isBusy = true
         defer { isBusy = false }
         do {
-            guard let url = repository.flatMap(latestReleaseURL(repository:)) else {
+            let channel = Self.channel
+            guard let url = repository.flatMap({ releasesURL(repository: $0, channel: channel) }) else {
                 throw UpdateError.message(tr("This build has no update source.", "Deze versie heeft geen updatebron."))
             }
             var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
@@ -62,9 +68,9 @@ final class Updater: ObservableObject {
             guard status == 200 else {
                 throw UpdateError.message(tr("GitHub answered with status \(status).", "GitHub antwoordde met status \(status)."))
             }
-            let release = try GitHubRelease.decode(data)
+            let releases = channel == .builds ? try GitHubRelease.decodeList(data) : [try GitHubRelease.decode(data)]
             UserDefaults.standard.set(Date(), forKey: Self.lastCheckKey)
-            guard let update = AvailableUpdate(current: currentVersion, release: release) else {
+            guard let update = AvailableUpdate.newest(current: currentVersion, in: releases, channel: channel) else {
                 if userInitiated { showUpToDate() }
                 return
             }

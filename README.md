@@ -82,6 +82,11 @@ Until all five secrets are set, the workflow builds an ad-hoc signed app as befo
 
 The app looks for a new [GitHub release](https://github.com/mukreb/mac-pst-viewer/releases) once a day at launch, and on demand with **PST Viewer → Check for Updates…** or the button in Settings. When there is one it shows the release notes and offers **Install and Relaunch**, **Later** or **Skip This Version**. Automatic checks can be turned off in Settings.
 
+Settings → Updates → **Install** chooses what to update to:
+
+- **Releases** (default): only versions published from a version tag, such as `v1.2.0`.
+- **All builds**: also every signed build of `main` and pre-releases. Builds of `main` are numbered after the latest release (`1.2.0.57` is build 57 after `v1.2.0`), so they sort between that release and the next one. Switching back to Releases never downgrades: you get the next release that is newer than the build you have.
+
 The update is downloaded, unpacked and checked before it replaces the app: it must be signed with a Developer ID of the same team as the running app, have the same bundle identifier and be the version that was offered. An app you built yourself (ad-hoc signed), or one that isn't in a folder it can write to, can't replace itself; for those the button opens the release page instead.
 
 To publish a release, push a version tag:
@@ -91,7 +96,7 @@ git tag v1.1.0
 git push origin v1.1.0
 ```
 
-The Build workflow then builds, signs and notarizes the app with that version, and publishes a release with `PST-Viewer.zip` and notes generated from the merged pull requests. This needs the signing secrets above; without them a tag build fails. Tags with a suffix, such as `v1.2.0-beta.1`, become pre-releases, which the updater skips. `./scripts/build-app.sh` gives a self-built app the version of the latest tag (or `APP_VERSION`, if set).
+The Build workflow then builds, signs and notarizes the app with that version, and publishes a release with `PST-Viewer.zip` and notes generated from the merged pull requests. This needs the signing secrets above; without them a tag build fails. Tags with a suffix, such as `v1.2.0-beta.1`, become pre-releases, which only the All builds channel installs. Every signed build of `main` is also published as a pre-release named `build-<version>`; the workflow keeps the 10 most recent. `./scripts/build-app.sh` gives a self-built app the version of the latest tag (or `APP_VERSION`, if set).
 
 ## Settings
 
@@ -100,7 +105,7 @@ Open **PST Viewer → Settings…** (⌘,) for:
 - **Language**: System default, English or Nederlands. The app's own texts switch immediately; menu items provided by macOS follow after restarting the app.
 - **Appearance**: System default, Light or Dark, and whether HTML messages get dark colours in dark mode.
 - **Show system folders**, **load remote images** and the **default character set** for old ANSI messages.
-- **Updates**: whether to check for new versions automatically, and a button to check now.
+- **Updates**: whether to check for new versions automatically, whether to install only releases or all builds, and a button to check now.
 
 <img src="docs/screenshot-settings.png" alt="Settings window" width="520">
 
